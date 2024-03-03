@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Net.Http.Headers;
 using TikTokSplitter.Configurations;
@@ -15,7 +16,7 @@ using WTelegram;
 
 namespace TikTokSplitter.Extensions;
 
-public static class Extensions
+public static partial class Extensions
 {
     public static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
@@ -27,6 +28,7 @@ public static class Extensions
         services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
         {
             options.UseMemoryCache(sp.GetRequiredService<IMemoryCache>());
+            options.UseSqlite("Data Source=videogenerator.db;");
         });
         services.AddHostedService<VideoMakerWorker>();
         AddHttpClients(hostContext, services);
@@ -74,8 +76,6 @@ public static class Extensions
             switch (client.Login(loginInfo).Result) // returns which config is needed to continue login
             {
                 case "verification_code": Console.Write("Code: "); loginInfo = Console.ReadLine(); break;
-                case "name": loginInfo = "John Doe"; break;    // if sign-up is required (first/last_name)
-                case "password": loginInfo = "secret!"; break; // if user has enabled 2FA
                 default: loginInfo = null; break;
             }
         client.OnUpdate += tgService.ProcessUpdate;
