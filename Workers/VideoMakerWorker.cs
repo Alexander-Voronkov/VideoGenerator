@@ -14,6 +14,7 @@ public class VideoMakerWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
+        await Task.Delay(1);
         try
         {
             while (!token.IsCancellationRequested)

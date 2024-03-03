@@ -1,10 +1,13 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using System.Net.Http.Headers;
 using TikTokSplitter.Configurations;
 using TikTokSplitter.Services.Implementations;
+using VideoGenerator.Infrastructure;
+using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using VideoGenerator.Workers;
 
@@ -14,12 +17,17 @@ public static class Extensions
 {
     public static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
-        services.AddSingleton<ICancellationTokenHandlerService>();
+        services.AddSingleton<ICancellationTokenHandlerService, CancellationTokenHandlerService>();
         services.AddTransient(typeof(CancellationToken), sp => sp.GetRequiredService<ICancellationTokenHandlerService>().Token);
         services.AddSerilog(logger => logger.ReadFrom.Configuration(hostContext.Configuration));
         services.Configure<Configuration>(hostContext.Configuration);
-        AddHttpClients(hostContext, services);
+        services.AddMemoryCache();
+        services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
+        {
+            options.UseMemoryCache(sp.GetRequiredService<IMemoryCache>());
+        });
         services.AddHostedService<VideoMakerWorker>();
+        AddHttpClients(hostContext, services);
     }
 
     private static void AddHttpClients(HostBuilderContext hostContext, IServiceCollection services)

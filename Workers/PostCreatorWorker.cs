@@ -4,8 +4,8 @@ namespace VideoGenerator.Workers;
 
 public class PostCreatorWorker : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        throw new NotImplementedException();
+        await Task.Delay(1);
     }
 }
