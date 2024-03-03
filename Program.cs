@@ -26,6 +26,4 @@ public class Program
                 configBuilder.AddJsonFile("logging.json");
             })
             .ConfigureServices(ConfigureServices);
-    //.UseServiceProviderFactory(new AutofacServiceProviderFactory())
-    //.ConfigureContainer<ContainerBuilder>(ConfigureAutofacBuilder)
 }

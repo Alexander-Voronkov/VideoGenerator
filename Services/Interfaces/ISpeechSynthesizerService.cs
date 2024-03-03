@@ -2,5 +2,5 @@
 
 public interface ISpeechSynthesizerService
 {
-    Task Synthesize();
+    Task Synthesize(string text);
 }
