@@ -9,20 +9,21 @@ namespace TikTokSplitter;
 
 public class Program
 {
-    public async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var host = CreateHostBuilder(args).Build();
+        // host.StartTelegramClient();
         var tokenHandler = host.Services.GetRequiredService<ICancellationTokenHandlerService>();
-        await InstallDependenciesHelper.InstallAllDependencies(tokenHandler.Token);
+        // await InstallDependenciesHelper.InstallAllDependencies(tokenHandler.Token);
         await host.RunAsync(tokenHandler.Token);
     }
 
-    public IHostBuilder CreateHostBuilder(string[] args)
+    public static IHostBuilder CreateHostBuilder(string[] args)
         => Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostcontext, configBuilder) =>
             {
                 configBuilder.AddJsonFile("appsettings.json");
-                configBuilder.AddJsonFile("loggging.json");
+                configBuilder.AddJsonFile("logging.json");
             })
             .ConfigureServices(ConfigureServices);
 }

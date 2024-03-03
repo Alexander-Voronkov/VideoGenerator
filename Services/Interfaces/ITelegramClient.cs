@@ -1,6 +1,8 @@
-﻿namespace VideoGenerator.Services.Interfaces;
+﻿using TL;
+
+namespace VideoGenerator.Services.Interfaces;
 
 public interface ITelegramClient
 {
-    public Task GetLatestMessages();
+    public Task ProcessUpdate(UpdatesBase updates);
 }

@@ -1,13 +1,23 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using VideoGenerator.Infrastructure.Entities;
 
 namespace VideoGenerator.Infrastructure;
 
 public class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+    public ApplicationDbContext()
+    {
+        
+    }
 
-    public DbSet<Message> Messages { get; set; }
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) 
+    {
+        Database.Migrate();
+    }
+
+    public DbSet<TelegramMessage> Messages { get; set; }
+    public DbSet<Attachment> Attachments { get; set; }
     public DbSet<Group> Groups { get; set; }
     public DbSet<Topic> Topics { get; set; }
     public DbSet<Language> Languages { get; set; }
@@ -16,54 +26,39 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Message>(entity =>
+        modelBuilder.Entity<TelegramMessage>(entity =>
         {
-            entity.HasKey(x => new { x.MessageId, x.GroupId });
-            entity.HasIndex(x => new { x.MessageId, x.GroupId })
-                .IsDescending()
-                .IsUnique();
             entity.HasOne(x => x.Group)
-                .WithMany()
-                .HasForeignKey(x => x.GroupId)
-                .IsRequired();
+                .WithMany(x => x.StolenMessages)
+                .HasForeignKey(x => x.GroupId);
+
+            entity.HasMany(x => x.Attachments)
+                .WithOne()
+                .HasForeignKey(x => x.TelegramMessageId);
         });
 
         modelBuilder.Entity<Group>(entity =>
         {
-            entity.HasKey(x => new { x.GroupId });
-            entity.HasIndex(x => new { x.GroupId })
-                .IsDescending()
-                .IsUnique();
             entity.HasOne(x => x.Topic)
                 .WithMany()
                 .HasForeignKey(x => x.TopicId)
-                .IsRequired();
+                .IsRequired(false);
+
+            entity.Property(x => x.TopicId)
+                .IsRequired(false);
         });
 
         modelBuilder.Entity<Topic>(entity =>
         {
-            entity.HasKey(x => new { x.TopicId, x.LanguageId });
-            entity.HasIndex(x => new { x.TopicId, x.LanguageId })
-                .IsDescending()
-                .IsUnique();
             entity.HasOne(x => x.Language)
-                .WithOne()
-                .IsRequired();
-            entity.Property(x => x.LanguageId)
-                .HasDefaultValue(Guid.NewGuid());
-        });
-
-        modelBuilder.Entity<Language>(entity =>
-        {
-            entity.HasKey(x => new { x.LanguageId, x.LanguageCode });
-            entity.HasIndex(x => new { x.LanguageId, x.TopicId, x.LanguageCode })
-                .IsDescending()
-                .IsUnique();
+                .WithMany(x => x.Topics)
+                .HasForeignKey(x => x.LanguageId);
         });
     }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseSqlite("Data Source=videogenerator.db;");
-    }
+    //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    //{
+    //    base.OnConfiguring(optionsBuilder);
+    //    optionsBuilder.UseSqlite("Data Source=videogenerator.db;");
+    //}
 }

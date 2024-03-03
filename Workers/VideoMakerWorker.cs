@@ -19,7 +19,7 @@ public class VideoMakerWorker : BackgroundService
         {
             while (!token.IsCancellationRequested)
             {
-
+                await Task.Delay(1);
             }
         }
         catch (Exception ex)
