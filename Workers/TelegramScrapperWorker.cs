@@ -28,6 +28,7 @@ public class TelegramScrapperWorker : BackgroundService
     {
         var loginInfo = _configuration["PHONE"];
         while (_client.User == null)
+        {
             switch (_client.Login(loginInfo).Result) // returns which config is needed to continue login
             {
                 case "verification_code": Console.Write("Code: "); loginInfo = Console.ReadLine(); break;
@@ -35,6 +36,8 @@ public class TelegramScrapperWorker : BackgroundService
                 case "password": loginInfo = "secret!"; break; // if user has enabled 2FA
                 default: loginInfo = null; break;
             }
+        }
+
         _client.OnUpdate += _telegramClient.ProcessUpdate;
         var me = _client.User;
         var chats = _client.Messages_GetAllChats().Result;

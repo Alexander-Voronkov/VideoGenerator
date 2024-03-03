@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Net.Http.Headers;
 using TikTokSplitter.Configurations;
@@ -72,16 +72,20 @@ public static partial class Extensions
 
         var client = new WTelegram.Client(int.Parse(configuration["API_ID"]), configuration["API_HASH"]);
         var loginInfo = configuration["PHONE"];
+
         while (client.User == null)
+        {
             switch (client.Login(loginInfo).Result) // returns which config is needed to continue login
             {
                 case "verification_code": Console.Write("Code: "); loginInfo = Console.ReadLine(); break;
                 default: loginInfo = null; break;
             }
+        }
+
         client.OnUpdate += tgService.ProcessUpdate;
         var me = client.User;
         var chats = client.Messages_GetAllChats().Result;
-        if(logger != null)
+        if (logger != null)
         {
             var channels = chats.chats
                 .Where(x => x.Value.IsChannel == true)
