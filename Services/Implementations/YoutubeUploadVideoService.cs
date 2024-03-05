@@ -1,6 +1,6 @@
-﻿using TikTokSplitter.Services.Interfaces;
+﻿using VideoGenerator.Services.Interfaces;
 
-namespace TikTokSplitter.Services.Implementations;
+namespace VideoGenerator.Services.Implementations;
 
 public class YoutubeUploadVideoService : IYoutubeUploadVideoService
 {

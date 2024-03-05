@@ -1,4 +1,4 @@
-﻿namespace TikTokSplitter.Services.Interfaces;
+﻿namespace VideoGenerator.Services.Interfaces;
 
 public interface IChatService
 {

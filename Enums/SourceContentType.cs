@@ -1,4 +1,4 @@
-﻿namespace TikTokSplitter.Enums;
+﻿namespace VideoGenerator.Enums;
 
 public enum SourceContentType : byte
 {

@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
-using TikTokSplitter.Services.Interfaces;
+using VideoGenerator.Services.Interfaces;
 
-namespace TikTokSplitter.Services.Implementations;
+namespace VideoGenerator.Services.Implementations;
 
 public class VideoDownloaderService : IVideoDownloaderService
 {

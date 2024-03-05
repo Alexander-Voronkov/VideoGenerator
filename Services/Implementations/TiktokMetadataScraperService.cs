@@ -1,10 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
-using TikTokSplitter.Exceptions;
-using TikTokSplitter.Models;
-using TikTokSplitter.Services.Interfaces;
+using VideoGenerator.Exceptions;
+using VideoGenerator.Models;
+using VideoGenerator.Services.Interfaces;
 
-namespace TikTokSplitter.Services.Implementations;
+namespace VideoGenerator.Services.Implementations;
 
 public class TiktokMetadataScraperService : ITiktokMetadataScraperService
 {

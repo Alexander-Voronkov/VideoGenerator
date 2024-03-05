@@ -1,7 +1,7 @@
 ﻿using System.Drawing;
 using Xabe.FFmpeg;
 
-namespace TikTokSplitter.Services.Interfaces;
+namespace VideoGenerator.Services.Interfaces;
 
 public interface IVideoProcessingService
 {

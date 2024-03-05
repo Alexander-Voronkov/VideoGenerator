@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
-using TikTokSplitter.Extensions;
+using Microsoft.Extensions.Options;
 using TL;
+using VideoGenerator.Configurations;
 using VideoGenerator.Enums;
+using VideoGenerator.Extensions;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Infrastructure.Entities;
 using VideoGenerator.Services.Interfaces;
@@ -11,32 +13,31 @@ namespace VideoGenerator.Services.Implementations;
 
 public class TelegramClient : ITelegramClient
 {
-    public const long MAX_SIZE = 100_000_000;
-
     static readonly Dictionary<long, User> Users = new();
     static readonly Dictionary<long, ChatBase> Chats = new();
-     
     private readonly ILogger _logger;
     private readonly Client _client;
     private readonly ApplicationDbContext _context;
+    private readonly IOptions<Configuration> _config;
 
     public TelegramClient(
-        ILogger<ITelegramClient> logger, 
-        Client client, 
+        ILogger<ITelegramClient> logger,
+        IOptions<Configuration> config,
+        Client client,
         ApplicationDbContext context)
     {
         _logger = logger;
         _client = client;
         _context = context;
+        _config = config;
     }
 
     public async Task ProcessUpdate(UpdatesBase updates)
     {
-        updates.CollectUsersChats(Users, Chats);
         foreach (var update in updates.UpdateList)
         {
-            if(update is UpdateNewMessage unw 
-                && unw.message.Peer is PeerChannel channel 
+            if (update is UpdateNewMessage unw
+                && unw.message.Peer is PeerChannel channel
                 && IsChannelInPool(channel))
             {
                 switch (unw.message)
@@ -59,33 +60,20 @@ public class TelegramClient : ITelegramClient
 
         var msgId = message.grouped_id > 0 ? message.grouped_id : message.ID;
 
-        var entity = _context.Messages.FirstOrDefault(x => x.TelegramMessageId == msgId);
-        if (entity == null)
+        if (!_context.QueueMessages.Any(x => x.QueueMessageId == msgId)
+            && !_context.PublishedMessages.Any(x => x.PublishedMessageId == msgId))
         {
-            // In case that we are receiving messages from test channels
-            // TODO: REMOVE
-            var group = _context.Groups.FirstOrDefault(x => x.GroupId == message.peer_id);
-            if (group == null)
+            var entity = new QueueMessage
             {
-                group = new Group
-                {
-                    GroupId = message.peer_id,
-                    TopicId = null
-                };
-                _context.Groups.Add(group);
-            }
-
-            entity = new TelegramMessage
-            {
-                TelegramMessageId = msgId,
-                GroupId = message.peer_id.ID,
+                QueueMessageId = msgId,
+                SourceGroupId = message.peer_id.ID,
                 Text = message.message,
             };
-            _context.Messages.Add(entity);
+            _context.QueueMessages.Add(entity);
             await _context.SaveChangesAsync();
         }
 
-        if (IsFilmNaChas(message.media))
+        if (IsLargeMedia(message.media))
         {
             return;
         }
@@ -93,26 +81,26 @@ public class TelegramClient : ITelegramClient
         if (message.media is MessageMediaPhoto { photo: Photo photo })
         {
             _logger.LogInformation("Downloading for message {ID}", msgId);
-            using var stream = new MemoryStream();
-            var type = await _client.DownloadFileAsync(photo, stream);
-
-            if (type is Storage_FileType.unknown or Storage_FileType.partial)
+            using (var stream = new MemoryStream())
             {
-                stream.Close();
-                return;
-            }
+                var type = await _client.DownloadFileAsync(photo, stream);
 
-            await SaveAttachment(stream.ToArray(), type.ToMime(), AttachmentContentType.Photo, msgId);
-            stream.Close();
+                if (type is Storage_FileType.unknown or Storage_FileType.partial)
+                {
+                    return;
+                }
+
+                await SaveAttachment(stream.ToArray(), type.ToMime(), AttachmentContentType.Photo, msgId);
+            }
         }
         else if (message.media is MessageMediaDocument { document: Document document })
         {
             _logger.LogCritical("Downloading for message {ID}", msgId);
-            using var stream = new MemoryStream();
-            var type = await _client.DownloadFileAsync(document, stream);
-
-            await SaveAttachment(stream.ToArray(), type, AttachmentContentType.Document, msgId);
-            stream.Close();
+            using (var stream = new MemoryStream())
+            {
+                var type = await _client.DownloadFileAsync(document, stream);
+                await SaveAttachment(stream.ToArray(), type, AttachmentContentType.Document, msgId);
+            }
         }
     }
 
@@ -121,22 +109,22 @@ public class TelegramClient : ITelegramClient
         var attachment = new Attachment
         {
             Content = content,
-            TelegramMessageId = messageID,
+            MessageId = messageID,
             MimeType = mime,
             Type = type
         };
 
-        _context.Attachments.Add(attachment);
+        _context.MessageAttachments.Add(attachment);
 
         await _context.SaveChangesAsync();
     }
 
-    private bool IsFilmNaChas(MessageMedia media)
+    private bool IsLargeMedia(MessageMedia media)
     {
         return media switch
         {
-            (MessageMediaPhoto { photo: Photo photo }) => photo.LargestPhotoSize.FileSize > MAX_SIZE,
-            (MessageMediaDocument { document: Document document }) => document.size > MAX_SIZE,
+            MessageMediaPhoto { photo: Photo photo } => photo.LargestPhotoSize.FileSize > _config.Value.MAX_TELEGRAM_FILE_SIZE,
+            MessageMediaDocument { document: Document document } => document.size > _config.Value.MAX_TELEGRAM_FILE_SIZE,
             _ => true,
         };
     }
@@ -147,7 +135,6 @@ public class TelegramClient : ITelegramClient
             || _context.Groups.Any(x => x.GroupId == channel.ID);
     }
 
- 
     private static string User(long id) => Users.TryGetValue(id, out var user) ? user.ToString() : $"User {id}";
     private static string Chat(long id) => Chats.TryGetValue(id, out var chat) ? chat.ToString() : $"Chat {id}";
     private static string Peer(Peer peer) => peer is null ? null : peer is PeerUser user ? User(user.user_id)

@@ -1,8 +1,8 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace TikTokSplitter.Extensions;
+namespace VideoGenerator.Extensions;
 
-public static class YoutubeMetadataScrapingStringExtensions
+public static partial class Extensions
 {
     public static string GetYouTubeVideoId(this string youtubeUrl)
     {

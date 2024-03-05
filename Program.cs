@@ -1,9 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TikTokSplitter.Helpers;
 using VideoGenerator.Services.Interfaces;
-using static TikTokSplitter.Extensions.Extensions;
+using static VideoGenerator.Extensions.Extensions;
 
 namespace TikTokSplitter;
 
@@ -12,9 +11,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         var host = CreateHostBuilder(args).Build();
-        // host.StartTelegramClient();
         var tokenHandler = host.Services.GetRequiredService<ICancellationTokenHandlerService>();
-        // await InstallDependenciesHelper.InstallAllDependencies(tokenHandler.Token);
         await host.RunAsync(tokenHandler.Token);
     }
 

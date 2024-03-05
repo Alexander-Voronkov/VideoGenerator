@@ -1,23 +1,18 @@
 ﻿using System.Collections.Concurrent;
-using TikTokSplitter.Enums;
+using VideoGenerator.Enums;
 
-namespace VideoGenerator.Constants;
+namespace VideoGenerator.AllConstants;
 
-public static class SourceContentTypeConstants
+public static partial class Constants
 {
-    private static readonly ConcurrentQueue<SourceContentType> _contentTypes;
-
-    static SourceContentTypeConstants()
-    {
-        _contentTypes = new(
-        [
+    private static readonly ConcurrentQueue<SourceContentType> _contentTypes =
+        new([
             SourceContentType.Youtube,
             SourceContentType.Tiktok,
             SourceContentType.Habr,
             SourceContentType.TelegramChannel,
             SourceContentType.Reels,
         ]);
-    }
 
     public static Task<SourceContentType> GetNext()
     {

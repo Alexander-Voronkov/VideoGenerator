@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using VideoGenerator.Exceptions;
 
-namespace TikTokSplitter.Helpers;
+namespace VideoGenerator.Helpers;
 
 public static class InstallDependenciesHelper
 {
@@ -11,14 +11,16 @@ public static class InstallDependenciesHelper
     /// <returns></returns>
     public static async Task InstallPython(CancellationToken token = default)
     {
-        if (!Environment.GetEnvironmentVariable("PATH").Contains(
+        var chocoList = await GetChocoInstalledApps(token);
+
+        if (!chocoList.Contains(
             "python",
             StringComparison.InvariantCultureIgnoreCase))
         {
             var process = Process.Start(new ProcessStartInfo()
             {
                 FileName = "cmd",
-                Arguments = "/c @choco install python -y",
+                Arguments = "/c choco install python -y",
                 Verb = "runas",
                 UseShellExecute = true,
             });
@@ -47,7 +49,7 @@ public static class InstallDependenciesHelper
                 FileName = "cmd",
                 Verb = "runas",
                 UseShellExecute = true,
-                Arguments = "/c @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))\" && SET PATH=%PATH%;%ALLUSERSPROFILE%\\chocolatey\\bin",
+                Arguments = "/c powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))\" && SET PATH=%PATH%;%ALLUSERSPROFILE%\\chocolatey\\bin",
             });
 
             await process.WaitForExitAsync(token);
@@ -65,14 +67,16 @@ public static class InstallDependenciesHelper
     /// <returns></returns>
     public static async Task InstallWhisper(CancellationToken token = default)
     {
-        if (!Environment.GetEnvironmentVariable("PATH").Contains(
-           "whisper",
+        var chocoList = await GetChocoInstalledApps(token);
+
+        if (!chocoList.Contains(
+           "python",
            StringComparison.InvariantCultureIgnoreCase))
         {
             var process = Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd",
-                Arguments = "/c @pip install whisper",
+                Arguments = "/c pip install whisper",
                 Verb = "runas",
                 UseShellExecute = true,
             });
@@ -92,7 +96,9 @@ public static class InstallDependenciesHelper
     /// <returns></returns>
     public static async Task InstallFFmpeg(CancellationToken token = default)
     {
-        if (!Environment.GetEnvironmentVariable("PATH").Contains(
+        var chocoList = await GetChocoInstalledApps(token);
+
+        if (!chocoList.Contains(
             "ffmpeg",
             StringComparison.InvariantCultureIgnoreCase))
         {
@@ -102,6 +108,7 @@ public static class InstallDependenciesHelper
                 Arguments = "/c choco install ffmpeg -y",
                 Verb = "runas",
                 UseShellExecute = true,
+                CreateNoWindow = true,
             });
 
             await process.WaitForExitAsync(token);
@@ -122,5 +129,25 @@ public static class InstallDependenciesHelper
         await InstallChoco(token);
         await Task.WhenAll(InstallFFmpeg(token), InstallPython(token));
         await InstallWhisper(token);
+    }
+
+    /// <summary>
+    /// Method for getting the list of applications installed by choco
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    public static async Task<string> GetChocoInstalledApps(CancellationToken token = default)
+    {
+        var process = Process.Start(new ProcessStartInfo()
+        {
+            FileName = "cmd",
+            Arguments = "/c choco --list",
+            RedirectStandardOutput = true,
+            CreateNoWindow = true,
+        });
+        process.Start();
+        await process.WaitForExitAsync(token);
+        var processOutput = await process.StandardOutput.ReadToEndAsync(token);
+        return processOutput;
     }
 }

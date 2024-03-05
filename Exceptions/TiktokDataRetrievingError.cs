@@ -1,4 +1,4 @@
-﻿namespace TikTokSplitter.Exceptions;
+﻿namespace VideoGenerator.Exceptions;
 
 public class TiktokDataRetrievingError : Exception
 {

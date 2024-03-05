@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using TikTokSplitter.Exceptions;
-using TikTokSplitter.Services.Interfaces;
+using VideoGenerator.Exceptions;
+using VideoGenerator.Services.Interfaces;
 
-namespace TikTokSplitter.Services.Implementations;
+namespace VideoGenerator.Services.Implementations;
 
 public class SubtitleGeneratorService : ISubtitleGeneratorService
 {

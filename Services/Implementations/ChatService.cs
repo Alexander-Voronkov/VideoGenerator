@@ -2,10 +2,10 @@
 using Microsoft.Extensions.Options;
 using OpenAI_API;
 using OpenAI_API.Chat;
-using TikTokSplitter.Configurations;
-using TikTokSplitter.Services.Interfaces;
+using VideoGenerator.Configurations;
+using VideoGenerator.Services.Interfaces;
 
-namespace TikTokSplitter.Services.Implementations;
+namespace VideoGenerator.Services.Implementations;
 
 public class ChatService : IChatService
 {

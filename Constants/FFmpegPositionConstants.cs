@@ -1,14 +1,10 @@
 ﻿using Xabe.FFmpeg;
 
-namespace TikTokSplitter.Constants;
+namespace VideoGenerator.AllConstants;
 
-public class FFmpegPositionConstants
+public static partial class Constants
 {
-    private static readonly Dictionary<Position, string> _positions;
-
-    static FFmpegPositionConstants()
-    {
-        _positions =
+    private static readonly Dictionary<Position, string> _positions =
             new()
             {
                 [Position.UpperLeft] = "x=0{0}:y=0{1}",
@@ -19,7 +15,6 @@ public class FFmpegPositionConstants
                 [Position.Bottom] = "x=((w-text_w)/2){0}:y=(h-text_h){1}",
                 [Position.Bottom] = "x=(w-text_w){0}:y=(h-text_h){1}",
             };
-    }
 
     public static IReadOnlyDictionary<Position, string> Positions => _positions;
 }

@@ -2,8 +2,19 @@
 
 public class Topic
 {
-    public int TopicId { get; set; }
+    public long TopicId { get; set; }
+
     public string TopicName { get; set; }
+
     public int LanguageId { get; set; }
-    public Language Language { get; set; }
+
+    /// <summary>
+    /// Groups on this topic
+    /// </summary>
+    public virtual ICollection<Group> Groups { get; set; }
+
+    /// <summary>
+    /// Language this topic refers to
+    /// </summary>
+    public virtual Language Language { get; set; }
 }
