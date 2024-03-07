@@ -17,9 +17,9 @@ public class LanguageDetectorService : ILanguageDetectorService
         _languageDetector = new DetectLanguageClient(_config.Value.DETECT_LANGUAGE_API_KEY);
     }
 
-    public async Task<CultureInfo> Detect(string text, CancellationToken token = default)
+    public async Task<CultureInfo[]> Detect(string text, CancellationToken token = default)
     {
         var lang = await _languageDetector.DetectAsync(text);
-        return CultureInfo.GetCultureInfo(lang.First().language);
+        return lang.Select(x => CultureInfo.GetCultureInfo(x.language)).ToArray();
     }
 }

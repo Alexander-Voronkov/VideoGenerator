@@ -55,7 +55,6 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(x => new { x.QueueMessageId, x.TargetGroupId, x.SourceGroupId })
                 .IsDescending(true, true, true)
-                .IsUnique(true)
                 .HasDatabaseName("UI_QueueMessageId_GroupId");
         });
 
@@ -71,7 +70,7 @@ public class ApplicationDbContext : DbContext
                 .IsRequired(true)
                 .HasColumnName("Text");
 
-            entity.ToTable(t => t.HasCheckConstraint("CK_Message_Text", "LENGTH(Text) > 1"));
+            entity.ToTable(t => t.HasCheckConstraint("CK_Published_Message_Text", "LENGTH(Text) > 1"));
 
             entity.HasOne(x => x.TargetGroup)
                 .WithMany(x => x.InputPublishedMessages)
@@ -93,7 +92,6 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(x => new { x.PublishedMessageId, x.TargetGroupId, x.SourceGroupId })
                 .IsDescending(true, true, true)
-                .IsUnique(true)
                 .HasDatabaseName("UI_PublishedMessageId_GroupId");
         });
 
@@ -131,7 +129,6 @@ public class ApplicationDbContext : DbContext
                 .IsRequired(true);
 
             entity.HasIndex(x => new { x.TopicId, x.GroupId })
-                .IsUnique(true)
                 .IsDescending(true, true)
                 .HasDatabaseName("UI_TopicId_GroupId");
         });
@@ -141,15 +138,11 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(x => new { x.TopicId })
                 .HasName("PK_TopicId");
 
-            entity.Property(x => x.TopicId)
-                .ValueGeneratedNever();
-
             entity.HasOne(x => x.Language)
                 .WithMany(x => x.Topics)
                 .HasForeignKey(x => x.LanguageId);
 
             entity.HasIndex(x => new { x.TopicName, x.TopicId, x.LanguageId })
-                .IsUnique(true)
                 .IsDescending(true, true, true)
                 .HasDatabaseName("UI_TopicName_TopicId");
         });
@@ -168,8 +161,8 @@ public class ApplicationDbContext : DbContext
                 .IsRequired(true);
 
             entity.HasIndex(x => new { x.AttachmentId, x.MessageId })
-                .IsUnique(true)
-                .IsDescending(true, true);
+                .IsDescending(true, true)
+                .HasDatabaseName("UI_AttachmentId_MessageId");
         });
 
         modelBuilder.Entity<Language>(entity =>
@@ -183,8 +176,8 @@ public class ApplicationDbContext : DbContext
                 .IsRequired(true);
 
             entity.HasIndex(x => new { x.LanguageId, x.LanguageCode })
-                .IsUnique(true)
-                .IsDescending(true, true);
+                .IsDescending(true, true)
+                .HasDatabaseName("UI_LanguageId_LanguageCode");
         });
     }
 }

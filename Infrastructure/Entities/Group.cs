@@ -10,6 +10,8 @@ public class Group
 
     public long TopicId { get; set; }
 
+    public bool IsTarget { get; set; }
+
     /// <summary>
     /// A topic related to this group
     /// </summary>

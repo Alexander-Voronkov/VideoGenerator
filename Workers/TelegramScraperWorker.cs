@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
@@ -37,41 +38,10 @@ public class TelegramScraperWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
-        Language[] languages = _context.Languages.ToArray();
-
-        if (!_context.Languages.Any())
-        {
-            languages = CultureInfo.GetCultures(CultureTypes.AllCultures)
-                .Select(x => new Language
-                {
-                    LanguageCode = x.IetfLanguageTag,
-                }).ToArray();
-
-            await _context.Languages.AddRangeAsync(languages, token);
-
-            await _context.SaveChangesAsync(token);
-        }
-
-        await _context.Topics.AddRangeAsync(Constants.GeneralTopics
-            .Select(t =>
-            {
-                var culture = _languageDetectorService.Detect(t).Result;
-                var topic = new Topic
-                {
-                    TopicName = t,
-                    Language = languages
-                    .FirstOrDefault(l => l.LanguageCode
-                        .Equals(
-                            culture.TwoLetterISOLanguageName,
-                            StringComparison.InvariantCultureIgnoreCase))
-                };
-                return topic;
-            }), token);
-
-        await _context.SaveChangesAsync(token);
+        await Seed();
 
         var loginInfo = _config.Value.TELEGRAM_API_PHONE;
-        while (_client.User == null)
+        while (_client.User is null)
         {
             switch (_client.Login(loginInfo).Result) // returns which config is needed to continue login
             {
@@ -94,6 +64,53 @@ public class TelegramScraperWorker : BackgroundService
 
             _logger.LogInformation("Telegram client {ID}:{Username} logged", me.ID, me.MainUsername);
             _logger.LogInformation("Available channels: {@Channels}", channels);
+        }
+    }
+
+    private async Task Seed(CancellationToken token = default)
+    {
+        var languages = _context.Languages
+            .AsNoTracking()
+            .ToArray();
+
+        if (!languages.Any())
+        {
+            languages = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
+                .Select(x => new Language
+                {
+                    LanguageCode = x.IetfLanguageTag,
+                })
+                .Skip(1)
+                .ToArray();
+
+            await _context.Languages.AddRangeAsync(languages, token);
+
+            await _context.SaveChangesAsync(token);
+        }
+
+        var topics = _context.Topics
+            .AsNoTracking()
+            .ToArray();
+
+        if (!topics.Any())
+        {
+            topics = Constants.GeneralTopics
+                .Select(t =>
+                {
+                    var cultures = _languageDetectorService.Detect(t).Result
+                        .Select(x => x.TwoLetterISOLanguageName)
+                        .ToArray();
+                    return new Topic
+                    {
+                        TopicName = t,
+                        LanguageId = languages
+                            .FirstOrDefault(l => cultures.Contains(l.LanguageCode)).LanguageId
+                    };
+                }).ToArray();
+
+            await _context.Topics.AddRangeAsync(topics, token);
+
+            await _context.SaveChangesAsync(token);
         }
     }
 }

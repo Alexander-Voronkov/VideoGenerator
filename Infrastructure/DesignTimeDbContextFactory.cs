@@ -8,7 +8,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseSqlite("Data Source = VideoGenerator.db");
+        optionsBuilder.UseSqlite("");
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }

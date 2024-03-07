@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
+using VideoGenerator.Infrastructure.Interceptors;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using VideoGenerator.Workers;
@@ -28,6 +30,7 @@ public static partial class Extensions
         });
 
         services.AddSingleton<ICancellationTokenHandlerService, CancellationTokenHandlerService>();
+        services.AddSingleton<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         services.AddSingleton<ITelegramClient, TelegramClient>();
         services.AddSingleton<ILanguageDetectorService, LanguageDetectorService>();
         services.AddSingleton<Client>((sp) =>
@@ -43,12 +46,13 @@ public static partial class Extensions
         services.AddMemoryCache();
         services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
         {
+            options.EnableSensitiveDataLogging();
+            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseMemoryCache(sp.GetRequiredService<IMemoryCache>());
             options.UseSqlite(sp.GetRequiredService<IOptions<Configuration>>().Value.SQLITE_CONN_STRING);
         });
 
         services.AddHostedService<VideoMakerWorker>();
-        services.AddHostedService<TelegramScraperWorker>();
         services.AddHostedService<TelegramScraperWorker>();
 
         AddHttpClients(hostContext, services);

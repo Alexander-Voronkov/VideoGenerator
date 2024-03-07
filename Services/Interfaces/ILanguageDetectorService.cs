@@ -4,5 +4,5 @@ namespace VideoGenerator.Services.Interfaces;
 
 public interface ILanguageDetectorService
 {
-    Task<CultureInfo> Detect(string text, CancellationToken token = default);
+    Task<CultureInfo[]> Detect(string text, CancellationToken token = default);
 }
