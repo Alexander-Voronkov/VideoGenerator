@@ -6,7 +6,7 @@ public class Attachment
 {
     public long AttachmentId { get; set; }
 
-    public long MessageId { get; set; }
+    public long QueueMessageId { get; set; }
 
     public string MimeType { get; set; }
 
@@ -17,10 +17,10 @@ public class Attachment
     /// <summary>
     /// Message this file refers to
     /// </summary>
-    public virtual QueueMessage Message { get; set; }
+    public virtual QueueMessage QueueMessage { get; set; }
 
     /// <summary>
     /// Published message this file refers to
     /// </summary>
-    public virtual PublishedMessage PublishedMessage { get; set; }
+    public virtual ICollection<PublishedMessage> PublishedMessages { get; set; }
 }

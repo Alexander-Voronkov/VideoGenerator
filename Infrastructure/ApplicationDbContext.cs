@@ -48,8 +48,8 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasMany(x => x.Attachments)
-                .WithOne(x => x.Message)
-                .HasForeignKey(x => x.MessageId)
+                .WithOne(x => x.QueueMessage)
+                .HasForeignKey(x => x.QueueMessageId)
                 .IsRequired(true)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -85,10 +85,7 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasMany(x => x.Attachments)
-                .WithOne(x => x.PublishedMessage)
-                .HasForeignKey(x => x.MessageId)
-                .IsRequired(true)
-                .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(x => x.PublishedMessages);
 
             entity.HasIndex(x => new { x.PublishedMessageId, x.TargetGroupId, x.SourceGroupId })
                 .IsDescending(true, true, true)
@@ -106,6 +103,11 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Topic)
                 .WithMany(x => x.Groups)
                 .HasForeignKey(x => x.TopicId)
+                .IsRequired(true);
+
+            entity.HasOne(x => x.Language)
+                .WithMany(x => x.Groups)
+                .HasForeignKey(x => x.LanguageId)
                 .IsRequired(true);
 
             entity.HasMany(x => x.InputQueueMessages)
@@ -138,12 +140,8 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(x => new { x.TopicId })
                 .HasName("PK_TopicId");
 
-            entity.HasOne(x => x.Language)
-                .WithMany(x => x.Topics)
-                .HasForeignKey(x => x.LanguageId);
-
-            entity.HasIndex(x => new { x.TopicName, x.TopicId, x.LanguageId })
-                .IsDescending(true, true, true)
+            entity.HasIndex(x => new { x.TopicName, x.TopicId })
+                .IsDescending(true, true)
                 .HasDatabaseName("UI_TopicName_TopicId");
         });
 
@@ -155,12 +153,15 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.AttachmentId)
                 .ValueGeneratedNever();
 
-            entity.HasOne(x => x.Message)
+            entity.HasOne(x => x.QueueMessage)
                 .WithMany(x => x.Attachments)
-                .HasForeignKey(x => x.MessageId)
+                .HasForeignKey(x => x.QueueMessageId)
                 .IsRequired(true);
 
-            entity.HasIndex(x => new { x.AttachmentId, x.MessageId })
+            entity.HasMany(x => x.PublishedMessages)
+                .WithMany(x => x.Attachments);
+
+            entity.HasIndex(x => new { x.AttachmentId, x.QueueMessageId })
                 .IsDescending(true, true)
                 .HasDatabaseName("UI_AttachmentId_MessageId");
         });
@@ -170,7 +171,7 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(x => new { x.LanguageId })
                 .HasName("PK_LanguageId");
 
-            entity.HasMany(x => x.Topics)
+            entity.HasMany(x => x.Groups)
                 .WithOne(x => x.Language)
                 .HasForeignKey(x => x.LanguageId)
                 .IsRequired(true);

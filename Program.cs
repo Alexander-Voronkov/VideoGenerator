@@ -6,7 +6,7 @@ using static VideoGenerator.Extensions.Extensions;
 
 namespace TikTokSplitter;
 
-public class Program
+public static class Program
 {
     public static async Task Main(string[] args)
     {
@@ -21,6 +21,7 @@ public class Program
             {
                 configBuilder.AddJsonFile("appsettings.json");
                 configBuilder.AddJsonFile("logging.json");
+                configBuilder.AddJsonFile("sourcegroups.json");
             })
             .ConfigureServices(ConfigureServices);
 }

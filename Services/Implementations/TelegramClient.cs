@@ -109,7 +109,7 @@ public class TelegramClient : ITelegramClient
         var attachment = new Attachment
         {
             Content = content,
-            MessageId = messageID,
+            QueueMessageId = messageID,
             MimeType = mime,
             Type = type
         };

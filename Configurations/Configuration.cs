@@ -13,4 +13,6 @@ public class Configuration
     public string TELEGRAM_API_HASH { get; set; }
     public string TELEGRAM_API_PHONE { get; set; }
     public string DETECT_LANGUAGE_API_KEY { get; set; }
+
+    public string[] SOURCE_GROUPS { get; set; }
 }

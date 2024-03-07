@@ -10,12 +10,19 @@ public class Group
 
     public long TopicId { get; set; }
 
+    public long LanguageId { get; set; }
+
     public bool IsTarget { get; set; }
 
     /// <summary>
     /// A topic related to this group
     /// </summary>
     public virtual Topic Topic { get; set; }
+
+    /// <summary>
+    /// A language related to this group
+    /// </summary>
+    public virtual Language Language { get; set; }
 
     /// <summary>
     /// Messages that will be published to this group

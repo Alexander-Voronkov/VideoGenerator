@@ -1,5 +1,5 @@
-﻿namespace VideoGenerator.Constants;
+﻿namespace VideoGenerator.AllConstants;
 
-public static class Constants
+public static partial class Constants
 {
 }

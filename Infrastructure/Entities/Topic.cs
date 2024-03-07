@@ -6,15 +6,13 @@ public class Topic
 
     public string TopicName { get; set; }
 
-    public int LanguageId { get; set; }
-
     /// <summary>
     /// Groups on this topic
     /// </summary>
     public virtual ICollection<Group> Groups { get; set; }
 
     /// <summary>
-    /// Language this topic refers to
+    /// Languages this topic available for
     /// </summary>
-    public virtual Language Language { get; set; }
+    public virtual ICollection<Language> AvailableLanguages { get; set; }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoGenerator.Infrastructure;
 
@@ -10,27 +11,14 @@ using VideoGenerator.Infrastructure;
 namespace VideoGenerator.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240307185936_v3")]
+    partial class v3
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.2");
-
-            modelBuilder.Entity("AttachmentPublishedMessage", b =>
-                {
-                    b.Property<long>("AttachmentsAttachmentId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("PublishedMessagesPublishedMessageId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("AttachmentsAttachmentId", "PublishedMessagesPublishedMessageId");
-
-                    b.HasIndex("PublishedMessagesPublishedMessageId");
-
-                    b.ToTable("AttachmentPublishedMessage");
-                });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Attachment", b =>
                 {
@@ -40,11 +28,11 @@ namespace VideoGenerator.Migrations
                     b.Property<byte[]>("Content")
                         .HasColumnType("BLOB");
 
+                    b.Property<long>("MessageId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("MimeType")
                         .HasColumnType("TEXT");
-
-                    b.Property<long>("QueueMessageId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
@@ -52,9 +40,9 @@ namespace VideoGenerator.Migrations
                     b.HasKey("AttachmentId")
                         .HasName("PK_AttachmentId");
 
-                    b.HasIndex("QueueMessageId");
+                    b.HasIndex("MessageId");
 
-                    b.HasIndex("AttachmentId", "QueueMessageId")
+                    b.HasIndex("AttachmentId", "MessageId")
                         .IsDescending()
                         .HasDatabaseName("UI_AttachmentId_MessageId");
 
@@ -75,16 +63,11 @@ namespace VideoGenerator.Migrations
                     b.Property<bool>("IsTarget")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long>("LanguageId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<long>("TopicId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("GroupId")
                         .HasName("PK_GroupId");
-
-                    b.HasIndex("LanguageId");
 
                     b.HasIndex("TopicId", "GroupId")
                         .IsDescending()
@@ -95,20 +78,15 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Language", b =>
                 {
-                    b.Property<long>("LanguageId")
+                    b.Property<int>("LanguageId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("LanguageCode")
                         .HasColumnType("TEXT");
 
-                    b.Property<long?>("TopicId")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("LanguageId")
                         .HasName("PK_LanguageId");
-
-                    b.HasIndex("TopicId");
 
                     b.HasIndex("LanguageId", "LanguageCode")
                         .IsDescending()
@@ -120,9 +98,6 @@ namespace VideoGenerator.Migrations
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
                 {
                     b.Property<long>("PublishedMessageId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("MessageID")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("PublishedAt")
@@ -164,9 +139,6 @@ namespace VideoGenerator.Migrations
                     b.Property<long>("QueueMessageId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long>("PublishedMessageId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<long>("SourceGroupId")
                         .HasColumnType("INTEGER");
 
@@ -183,9 +155,6 @@ namespace VideoGenerator.Migrations
 
                     b.HasKey("QueueMessageId")
                         .HasName("PK_QueueMessageId");
-
-                    b.HasIndex("PublishedMessageId")
-                        .IsUnique();
 
                     b.HasIndex("SourceGroupId");
 
@@ -207,69 +176,52 @@ namespace VideoGenerator.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("LanguageId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TopicName")
                         .HasColumnType("TEXT");
 
                     b.HasKey("TopicId")
                         .HasName("PK_TopicId");
 
-                    b.HasIndex("TopicName", "TopicId")
+                    b.HasIndex("LanguageId");
+
+                    b.HasIndex("TopicName", "TopicId", "LanguageId")
                         .IsDescending()
                         .HasDatabaseName("UI_TopicName_TopicId");
 
                     b.ToTable("Topics");
                 });
 
-            modelBuilder.Entity("AttachmentPublishedMessage", b =>
-                {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.Attachment", null)
-                        .WithMany()
-                        .HasForeignKey("AttachmentsAttachmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.PublishedMessage", null)
-                        .WithMany()
-                        .HasForeignKey("PublishedMessagesPublishedMessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Attachment", b =>
                 {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.QueueMessage", "QueueMessage")
+                    b.HasOne("VideoGenerator.Infrastructure.Entities.PublishedMessage", "PublishedMessage")
                         .WithMany("Attachments")
-                        .HasForeignKey("QueueMessageId")
+                        .HasForeignKey("MessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("QueueMessage");
+                    b.HasOne("VideoGenerator.Infrastructure.Entities.QueueMessage", "Message")
+                        .WithMany("Attachments")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+
+                    b.Navigation("PublishedMessage");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Group", b =>
                 {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.Language", "Language")
-                        .WithMany("Groups")
-                        .HasForeignKey("LanguageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("VideoGenerator.Infrastructure.Entities.Topic", "Topic")
                         .WithMany("Groups")
                         .HasForeignKey("TopicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Language");
-
                     b.Navigation("Topic");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Language", b =>
-                {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.Topic", null)
-                        .WithMany("AvailableLanguages")
-                        .HasForeignKey("TopicId");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
@@ -293,12 +245,6 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.QueueMessage", b =>
                 {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.PublishedMessage", "PublishedMessage")
-                        .WithOne("QueueMessage")
-                        .HasForeignKey("VideoGenerator.Infrastructure.Entities.QueueMessage", "PublishedMessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("VideoGenerator.Infrastructure.Entities.Group", "SourceGroup")
                         .WithMany("OutputQueueMessages")
                         .HasForeignKey("SourceGroupId")
@@ -311,11 +257,20 @@ namespace VideoGenerator.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.Navigation("PublishedMessage");
-
                     b.Navigation("SourceGroup");
 
                     b.Navigation("TargetGroup");
+                });
+
+            modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Topic", b =>
+                {
+                    b.HasOne("VideoGenerator.Infrastructure.Entities.Language", "Language")
+                        .WithMany("Topics")
+                        .HasForeignKey("LanguageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Group", b =>
@@ -331,12 +286,12 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Language", b =>
                 {
-                    b.Navigation("Groups");
+                    b.Navigation("Topics");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
                 {
-                    b.Navigation("QueueMessage");
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.QueueMessage", b =>
@@ -346,8 +301,6 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Topic", b =>
                 {
-                    b.Navigation("AvailableLanguages");
-
                     b.Navigation("Groups");
                 });
 #pragma warning restore 612, 618

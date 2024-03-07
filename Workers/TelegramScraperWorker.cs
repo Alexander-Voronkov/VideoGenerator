@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using TL;
 using VideoGenerator.AllConstants;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
@@ -36,10 +37,8 @@ public class TelegramScraperWorker : BackgroundService
         _languageDetectorService = languageDetectorService;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken token = default)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken = default)
     {
-        await Seed();
-
         var loginInfo = _config.Value.TELEGRAM_API_PHONE;
         while (_client.User is null)
         {
@@ -55,62 +54,83 @@ public class TelegramScraperWorker : BackgroundService
         _client.OnUpdate += _telegramClient.ProcessUpdate;
         var me = _client.User;
         var chats = _client.Messages_GetAllChats().Result;
-        if (_logger != null)
-        {
-            var channels = chats.chats
-                .Where(x => x.Value.IsChannel == true)
-                .Select(x => x.Value.Title)
-                .ToList();
 
-            _logger.LogInformation("Telegram client {ID}:{Username} logged", me.ID, me.MainUsername);
-            _logger.LogInformation("Available channels: {@Channels}", channels);
-        }
+        var channels = chats.chats
+            .Where(x => x.Value.IsChannel)
+            .ToList();
+
+        await Seed(channels);
+
+        _logger.LogInformation("Telegram client {ID}:{Username} logged", me.ID, me.MainUsername);
+        _logger.LogInformation("Available channels: {@Channels}", channels);
     }
 
-    private async Task Seed(CancellationToken token = default)
+    private async Task Seed(List<KeyValuePair<long, ChatBase>> channels,CancellationToken token = default)
     {
-        var languages = _context.Languages
-            .AsNoTracking()
-            .ToArray();
+        //var languages = _context.Languages
+        //    .AsNoTracking()
+        //    .ToArray();
 
-        if (!languages.Any())
-        {
-            languages = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
-                .Select(x => new Language
-                {
-                    LanguageCode = x.IetfLanguageTag,
-                })
-                .Skip(1)
-                .ToArray();
+        //if (!languages.Any())
+        //{
+        //    languages = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
+        //        .Select(x => new Language
+        //        {
+        //            LanguageCode = x.IetfLanguageTag,
+        //        })
+        //        .Skip(1)
+        //        .ToArray();
 
-            await _context.Languages.AddRangeAsync(languages, token);
+        //    await _context.Languages.AddRangeAsync(languages, token);
 
-            await _context.SaveChangesAsync(token);
-        }
+        //    await _context.SaveChangesAsync(token);
+        //}
 
-        var topics = _context.Topics
-            .AsNoTracking()
-            .ToArray();
+        //var topics = _context.Topics
+        //    .AsNoTracking()
+        //    .ToArray();
 
-        if (!topics.Any())
-        {
-            topics = Constants.GeneralTopics
-                .Select(t =>
-                {
-                    var cultures = _languageDetectorService.Detect(t).Result
-                        .Select(x => x.TwoLetterISOLanguageName)
-                        .ToArray();
-                    return new Topic
-                    {
-                        TopicName = t,
-                        LanguageId = languages
-                            .FirstOrDefault(l => cultures.Contains(l.LanguageCode)).LanguageId
-                    };
-                }).ToArray();
+        //if (!topics.Any())
+        //{
+        //    topics = AllConstants.Constants
+        //        .GeneralTopics
+        //        .Select(t =>
+        //        {
+        //            var cultures = _languageDetectorService.Detect(t).Result
+        //                .Select(x => x.TwoLetterISOLanguageName)
+        //                .ToArray();
+        //            return new Topic
+        //            {
+        //                TopicName = t,
+        //                LanguageId = languages
+        //                    .FirstOrDefault(l => cultures.Contains(l.LanguageCode))?.LanguageId ?? -1
+        //            };
+        //        }).ToArray();
 
-            await _context.Topics.AddRangeAsync(topics, token);
+        //    await _context.Topics.AddRangeAsync(topics, token);
 
-            await _context.SaveChangesAsync(token);
-        }
+        //    await _context.SaveChangesAsync(token);
+        //}
+
+        //var groups = _context.Groups
+        //    .AsNoTracking()
+        //    .ToArray();
+
+        //if (!groups.Any())
+        //{
+        //    var result = channels
+        //        .Where(x => _config.Value.SOURCE_GROUPS.Any(s => s.Split('/').Last() == x.Value.MainUsername))
+        //        .Select(x => new Group
+        //        {
+        //            GroupId = x.Value.ID,
+        //            GroupLink = x.Value.MainUsername,
+        //            GroupName = x.Value.Title,
+        //            TopicId = topics[Random.Shared.Next(0, topics.Length)].TopicId,
+        //        });
+
+        //    await _context.Groups.AddRangeAsync(result, token);
+
+        //    await _context.SaveChangesAsync(token);
+        //}
     }
 }

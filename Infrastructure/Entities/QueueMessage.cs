@@ -8,9 +8,13 @@ public class QueueMessage
 
     public long TargetGroupId { get; set; }
 
+    public long PublishedMessageId { get; set; }
+
     public string Text { get; set; }
 
     public DateTime StolenAt { get; set; }
+
+    public virtual PublishedMessage PublishedMessage { get; set; }
 
     /// <summary>
     /// A group this message will be published to
