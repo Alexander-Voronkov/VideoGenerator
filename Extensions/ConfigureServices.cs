@@ -81,5 +81,9 @@ public static partial class Extensions
             client.BaseAddress = new Uri("https://www.googleapis.com/youtube/v3/");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", hostContext.Configuration.GetValue<string>("YOUTUBE_DATA_API_KEY"));
         });
+        services.AddHttpClient<TranslationService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api-free.deepl.com/v2/");
+        });
     }
 }
