@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using VideoGenerator.Exceptions;
-using VideoGenerator.Models;
+using VideoGenerator.Models.TiktokMetadata;
 using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;

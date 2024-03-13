@@ -140,6 +140,9 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(x => new { x.TopicId })
                 .HasName("PK_TopicId");
 
+            entity.Property(x => x.IsAvailable)
+                .HasDefaultValue(true);
+
             entity.HasIndex(x => new { x.TopicName, x.TopicId })
                 .IsDescending(true, true)
                 .HasDatabaseName("UI_TopicName_TopicId");

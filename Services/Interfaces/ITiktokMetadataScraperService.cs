@@ -1,4 +1,4 @@
-﻿using VideoGenerator.Models;
+﻿using VideoGenerator.Models.TiktokMetadata;
 
 namespace VideoGenerator.Services.Interfaces;
 

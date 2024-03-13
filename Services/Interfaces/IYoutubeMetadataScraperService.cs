@@ -1,4 +1,4 @@
-﻿using VideoGenerator.Models;
+﻿using VideoGenerator.Models.YoutubeMetadata;
 
 namespace VideoGenerator.Services.Interfaces;
 

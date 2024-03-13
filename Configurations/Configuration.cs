@@ -15,4 +15,5 @@ public class Configuration
     public string DETECT_LANGUAGE_API_KEY { get; set; }
     public string DEEPL_API_KEY { get; set; }
     public string[] SOURCE_GROUPS { get; set; }
+    public string[] GENERAL_TOPICS { get; set; }
 }

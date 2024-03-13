@@ -4,7 +4,7 @@ public class PublishedMessage
 {
     public long PublishedMessageId { get; set; }
 
-    public long MessageID { get; set; }
+    public long QueueMessageId { get; set; }
 
     public long SourceGroupId { get; set; }
 
@@ -24,7 +24,7 @@ public class PublishedMessage
     public virtual Group TargetGroup { get; set; }
 
     /// <summary>
-    /// A group this message is stolen from
+    /// A group this message was stolen from
     /// </summary>
     public virtual Group SourceGroup { get; set; }
 

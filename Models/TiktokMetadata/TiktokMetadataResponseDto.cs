@@ -1,4 +1,4 @@
-﻿namespace VideoGenerator.Models;
+﻿namespace VideoGenerator.Models.TiktokMetadata;
 
 public class TiktokMetadataResponseDto
 {

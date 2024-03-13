@@ -13,7 +13,6 @@ public class VideoProcessingService : IVideoProcessingService
 {
     private readonly ILogger _logger;
     private readonly ConcurrentBag<string> _fonts;
-    private readonly Random _random;
 
     public VideoProcessingService(ILogger<VideoProcessingService> logger)
     {
@@ -25,7 +24,6 @@ public class VideoProcessingService : IVideoProcessingService
                     "Fonts"),
                 "*.{ttf,fon}",
                 SearchOption.AllDirectories));
-        _random = new Random();
     }
 
     /// <summary>
@@ -314,7 +312,7 @@ public class VideoProcessingService : IVideoProcessingService
         }
 
         var font = _fonts.FirstOrDefault(x => x.Contains(fontName, StringComparison.InvariantCultureIgnoreCase))
-            ?? _fonts.ElementAt(_random.Next(0, _fonts.Count - 1)) ?? fontName;
+            ?? _fonts.ElementAt(Random.Shared.Next(0, _fonts.Count)) ?? fontName;
         var stream = inputFileInfo.VideoStreams.FirstOrDefault();
         var color = Color.FromKnownColor(textColor).ToHexColor();
         var position = string.Format(Constants.Positions[textPosition], leftPadding, topPadding);

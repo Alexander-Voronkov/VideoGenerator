@@ -10,9 +10,9 @@ public class SpeechSynthesizerService : ISpeechSynthesizerService
 {
     private readonly SpeechSynthesizer _speechSynthesizerService;
 
-    public SpeechSynthesizerService()
+    public SpeechSynthesizerService(SpeechSynthesizer speechSynthesizer)
     {
-        _speechSynthesizerService = new();
+        _speechSynthesizerService = speechSynthesizer;
     }
 
     public Task SynthesizeToStream(string text, Stream destination, CultureInfo culture = default)

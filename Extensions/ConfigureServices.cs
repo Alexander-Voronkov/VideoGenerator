@@ -1,12 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DetectLanguage;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using OpenAI_API;
 using Serilog;
 using System.Net.Http.Headers;
+using System.Speech.Synthesis;
 using System.Text;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
@@ -36,7 +39,21 @@ public static partial class Extensions
         services.AddSingleton<Client>((sp) =>
         {
             var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
-            return new Client(config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH);
+            return new(config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH);
+        });
+        services.AddSingleton<OpenAIAPI>((sp) =>
+        {
+            var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
+            return new(config.CHAT_API_KEY);
+        });
+        services.AddSingleton<DetectLanguageClient>((sp) =>
+        {
+            var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
+            return new(config.DETECT_LANGUAGE_API_KEY);
+        });
+        services.AddSingleton<SpeechSynthesizer>((sp) =>
+        {
+            return new();
         });
 
         services.AddTransient(
@@ -54,6 +71,7 @@ public static partial class Extensions
 
         services.AddHostedService<VideoMakerWorker>();
         services.AddHostedService<TelegramScraperWorker>();
+        services.AddHostedService<FilmDownloaderWorker>();
 
         AddHttpClients(hostContext, services);
     }
@@ -85,5 +103,6 @@ public static partial class Extensions
         {
             client.BaseAddress = new Uri("https://api-free.deepl.com/v2/");
         });
+        services.AddHttpClient<FilmMetadataScraperService>();
     }
 }

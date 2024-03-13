@@ -11,10 +11,10 @@ public class LanguageDetectorService : ILanguageDetectorService
     private readonly DetectLanguageClient _languageDetector;
     private readonly IOptions<Configuration> _config;
 
-    public LanguageDetectorService(IOptions<Configuration> config)
+    public LanguageDetectorService(IOptions<Configuration> config, DetectLanguageClient detectLanguageClient)
     {
         _config = config;
-        _languageDetector = new DetectLanguageClient(_config.Value.DETECT_LANGUAGE_API_KEY);
+        _languageDetector = detectLanguageClient;
     }
 
     public async Task<CultureInfo[]> Detect(string text, CancellationToken token = default)

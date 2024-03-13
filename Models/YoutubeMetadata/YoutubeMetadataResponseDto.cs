@@ -1,4 +1,4 @@
-﻿namespace VideoGenerator.Models;
+﻿namespace VideoGenerator.Models.YoutubeMetadata;
 
 public class YoutubeMetadataResponseDto
 {

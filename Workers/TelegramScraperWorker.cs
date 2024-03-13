@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using TL;
-using VideoGenerator.AllConstants;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Infrastructure.Entities;
@@ -14,27 +13,30 @@ using WTelegram;
 namespace VideoGenerator.Workers;
 public class TelegramScraperWorker : BackgroundService
 {
+    private readonly Client _client;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<TelegramScraperWorker> _logger;
     private readonly IOptions<Configuration> _config;
     private readonly ITelegramClient _telegramClient;
     private readonly ILanguageDetectorService _languageDetectorService;
-    private readonly Client _client;
-    private readonly ApplicationDbContext _context;
+    private readonly ITranslationService _translationService;
 
     public TelegramScraperWorker(
+        Client client,
+        ApplicationDbContext context,
         ILogger<TelegramScraperWorker> logger,
         IOptions<Configuration> config,
         ITelegramClient telegramClient,
-        Client client,
-        ApplicationDbContext context,
-        ILanguageDetectorService languageDetectorService)
+        ILanguageDetectorService languageDetectorService,
+        ITranslationService translationService)
     {
+        _client = client;
+        _context = context;
         _logger = logger;
         _config = config;
         _telegramClient = telegramClient;
-        _client = client;
-        _context = context;
         _languageDetectorService = languageDetectorService;
+        _translationService = translationService;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken = default)
@@ -65,72 +67,79 @@ public class TelegramScraperWorker : BackgroundService
         _logger.LogInformation("Available channels: {@Channels}", channels);
     }
 
-    private async Task Seed(List<KeyValuePair<long, ChatBase>> channels,CancellationToken token = default)
+    private async Task Seed(List<KeyValuePair<long, ChatBase>> channels, CancellationToken token = default)
     {
-        //var languages = _context.Languages
-        //    .AsNoTracking()
-        //    .ToArray();
+        var languages = _context.Languages
+            .AsNoTracking()
+            .ToArray();
 
-        //if (!languages.Any())
-        //{
-        //    languages = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
-        //        .Select(x => new Language
-        //        {
-        //            LanguageCode = x.IetfLanguageTag,
-        //        })
-        //        .Skip(1)
-        //        .ToArray();
+        if (languages.Length == 0)
+        {
+            languages = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
+                .Select(x => new Language
+                {
+                    LanguageCode = x.TwoLetterISOLanguageName,
+                })
+                .Skip(1)
+                .ToArray();
 
-        //    await _context.Languages.AddRangeAsync(languages, token);
+            await _context.Languages.AddRangeAsync(languages, token);
 
-        //    await _context.SaveChangesAsync(token);
-        //}
+            await _context.SaveChangesAsync(token);
+        }
 
-        //var topics = _context.Topics
-        //    .AsNoTracking()
-        //    .ToArray();
+        var topics = _context.Topics
+            .AsNoTracking()
+            .ToArray();
 
-        //if (!topics.Any())
-        //{
-        //    topics = AllConstants.Constants
-        //        .GeneralTopics
-        //        .Select(t =>
-        //        {
-        //            var cultures = _languageDetectorService.Detect(t).Result
-        //                .Select(x => x.TwoLetterISOLanguageName)
-        //                .ToArray();
-        //            return new Topic
-        //            {
-        //                TopicName = t,
-        //                LanguageId = languages
-        //                    .FirstOrDefault(l => cultures.Contains(l.LanguageCode))?.LanguageId ?? -1
-        //            };
-        //        }).ToArray();
+        var missingTopics = _config.Value.GENERAL_TOPICS
+            .Where(t => !topics.Any(x => x.TopicName == t))
+            .ToArray();
 
-        //    await _context.Topics.AddRangeAsync(topics, token);
+        if (missingTopics.Length != 0)
+        {
+            topics = languages.SelectMany(l =>
+            {
+                return missingTopics
+                    .Select(t => new Topic
+                    {
+                        Language = l,
+                        TopicName = _translationService.Translate(t, CultureInfo
+                            .GetCultureInfo(l.LanguageCode))
+                            .Result
+                            .Translations
+                            .First()
+                            .WordText,
+                    });
+            }).ToArray();
 
-        //    await _context.SaveChangesAsync(token);
-        //}
+            await _context.Topics.AddRangeAsync(topics, token);
 
-        //var groups = _context.Groups
-        //    .AsNoTracking()
-        //    .ToArray();
+            await _context.SaveChangesAsync(token);
+        }
 
-        //if (!groups.Any())
-        //{
-        //    var result = channels
-        //        .Where(x => _config.Value.SOURCE_GROUPS.Any(s => s.Split('/').Last() == x.Value.MainUsername))
-        //        .Select(x => new Group
-        //        {
-        //            GroupId = x.Value.ID,
-        //            GroupLink = x.Value.MainUsername,
-        //            GroupName = x.Value.Title,
-        //            TopicId = topics[Random.Shared.Next(0, topics.Length)].TopicId,
-        //        });
+        var groups = _context.Groups
+            .AsNoTracking()
+            .ToArray();
 
-        //    await _context.Groups.AddRangeAsync(result, token);
+        if (groups.Length == 0)
+        {
+            var result = channels
+                .Where(x => _config.Value.SOURCE_GROUPS
+                    .Any(s => s
+                        .Split('/')
+                        .Last() == x.Value.MainUsername))
+                .Select(x => new Group
+                {
+                    GroupId = x.Value.ID,
+                    GroupLink = x.Value.MainUsername,
+                    GroupName = x.Value.Title,
+                    TopicId = topics[Random.Shared.Next(0, topics.Length)].TopicId,
+                });
 
-        //    await _context.SaveChangesAsync(token);
-        //}
+            await _context.Groups.AddRangeAsync(result, token);
+
+            await _context.SaveChangesAsync(token);
+        }
     }
 }

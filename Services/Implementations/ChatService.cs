@@ -13,9 +13,9 @@ public class ChatService : IChatService
     private readonly ILogger _logger;
     private readonly IOptions<Configuration> _configuration;
 
-    public ChatService(IOptions<Configuration> config, ILogger<ChatService> logger)
+    public ChatService(IOptions<Configuration> config, ILogger<ChatService> logger, OpenAIAPI api)
     {
-        _api = new(config.Value.CHAT_API_KEY);
+        _api = api;
         _logger = logger;
         _configuration = config;
     }

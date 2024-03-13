@@ -2,7 +2,7 @@
 using System.Net.Http.Json;
 using VideoGenerator.Exceptions;
 using VideoGenerator.Extensions;
-using VideoGenerator.Models;
+using VideoGenerator.Models.YoutubeMetadata;
 using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;
