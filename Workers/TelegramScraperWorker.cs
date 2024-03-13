@@ -127,7 +127,7 @@ public class TelegramScraperWorker : BackgroundService
                 .Where(x => _config.Value.SOURCE_GROUPS
                     .Any(s => s
                         .Split('/')
-                        .Last() == x.Value.MainUsername))
+                        .Last() == x.Value.MainUsername))f
                 .Select(x => new Group
                 {
                     GroupId = x.Value.ID,
