@@ -43,6 +43,11 @@ public class TelegramScraperWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await RunScrapperAsync(stoppingToken);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+
+        }
     }
 
     private async Task RunScrapperAsync(CancellationToken stoppingToken = default)

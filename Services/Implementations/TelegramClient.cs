@@ -1,5 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using System.Threading;
 using TL;
 using VideoGenerator.Configurations;
 using VideoGenerator.Enums;
@@ -19,17 +22,20 @@ public class TelegramClient : ITelegramClient
     private readonly Client _client;
     private readonly ApplicationDbContext _context;
     private readonly IOptions<Configuration> _config;
+    private readonly ITranslationService _translationService;
 
     public TelegramClient(
         ILogger<ITelegramClient> logger,
         IOptions<Configuration> config,
         Client client,
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        ITranslationService translationService)
     {
         _logger = logger;
         _client = client;
         _context = context;
         _config = config;
+        _translationService = translationService;
     }
 
     public async Task ProcessUpdate(UpdatesBase updates)
@@ -47,6 +53,48 @@ public class TelegramClient : ITelegramClient
                         break;
                 }
             }
+        }
+    }
+
+    private async Task SendMessage(int channelId, QueueMessage message, CancellationToken cancelationToken)
+    {
+        var channel = _context
+            .Groups
+            .Include(x => x.Language)
+            .FirstOrDefault(x => x.IsTarget && x.GroupId == channelId);
+
+        var input = (await _client.Messages_GetAllChats())
+            .chats
+            .FirstOrDefault(x => x.Value.IsChannel && x.Key == channelId)
+            .Value
+            ?.ToInputPeer();
+
+        if(channel != null && input != null)
+        {
+            var translatedText = await _translationService.Translate(
+                message.Text, 
+                new CultureInfo(channel.Language.LanguageCode), 
+                cancelationToken);
+
+            var attachments = new List<InputMedia>();
+            foreach (var attachment in message.Attachments)
+            {
+                var stream = new MemoryStream(attachment.Content);
+                var file = await _client.UploadFileAsync(stream, Guid.NewGuid().ToString(), null);
+                var media = new InputMediaUploadedPhoto
+                {
+                    file = file,                    
+                };
+
+                attachments.Add(media);
+            }
+
+            var sendedMessage = await _client.SendAlbumAsync(
+                input,
+                attachments,
+                translatedText.Translations.FirstOrDefault().WordText);
+
+            // TODO: Save sended message
         }
     }
 
