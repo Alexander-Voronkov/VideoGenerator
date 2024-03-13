@@ -7,6 +7,7 @@ using TL;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Infrastructure.Entities;
+using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using WTelegram;
 
@@ -39,12 +40,17 @@ public class TelegramScraperWorker : BackgroundService
         _translationService = translationService;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken = default)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await RunScrapperAsync(stoppingToken);
+    }
+
+    private async Task RunScrapperAsync(CancellationToken stoppingToken = default)
     {
         var loginInfo = _config.Value.TELEGRAM_API_PHONE;
         while (_client.User is null)
         {
-            switch (_client.Login(loginInfo).Result) // returns which config is needed to continue login
+            switch (await _client.Login(loginInfo)) // returns which config is needed to continue login
             {
                 case "verification_code": Console.Write("Code: "); loginInfo = Console.ReadLine(); break;
                 case "name": loginInfo = "John Doe"; break;    // if sign-up is required (first/last_name)
@@ -55,13 +61,13 @@ public class TelegramScraperWorker : BackgroundService
 
         _client.OnUpdate += _telegramClient.ProcessUpdate;
         var me = _client.User;
-        var chats = _client.Messages_GetAllChats().Result;
+        var chats = await _client.Messages_GetAllChats();
 
         var channels = chats.chats
             .Where(x => x.Value.IsChannel)
             .ToList();
 
-        await Seed(channels);
+        await Seed(channels, stoppingToken);
 
         _logger.LogInformation("Telegram client {ID}:{Username} logged", me.ID, me.MainUsername);
         _logger.LogInformation("Available channels: {@Channels}", channels);
@@ -98,20 +104,13 @@ public class TelegramScraperWorker : BackgroundService
 
         if (missingTopics.Length != 0)
         {
-            topics = languages.SelectMany(l =>
-            {
-                return missingTopics
-                    .Select(t => new Topic
-                    {
-                        Language = l,
-                        TopicName = _translationService.Translate(t, CultureInfo
-                            .GetCultureInfo(l.LanguageCode))
-                            .Result
-                            .Translations
-                            .First()
-                            .WordText,
-                    });
-            }).ToArray();
+            topics = missingTopics
+                .Select(t => new Topic
+                {
+                    TopicName = t,
+                    AvailableLanguages = languages
+                })
+                .ToArray();
 
             await _context.Topics.AddRangeAsync(topics, token);
 
@@ -135,6 +134,7 @@ public class TelegramScraperWorker : BackgroundService
                     GroupLink = x.Value.MainUsername,
                     GroupName = x.Value.Title,
                     TopicId = topics[Random.Shared.Next(0, topics.Length)].TopicId,
+                    LanguageId = languages[Random.Shared.Next(0, languages.Length)].LanguageId
                 });
 
             await _context.Groups.AddRangeAsync(result, token);

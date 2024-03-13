@@ -1,6 +1,6 @@
 ﻿namespace VideoGenerator.Services.Interfaces;
 
-public interface ITiktokUploadVIdeoService
+public interface ITiktokUploadVideoService
 {
     Task UploadVideo(string path);
 }

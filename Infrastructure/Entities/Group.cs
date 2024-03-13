@@ -8,9 +8,9 @@ public class Group
 
     public string GroupName { get; set; }
 
-    public long TopicId { get; set; }
+    public int TopicId { get; set; }
 
-    public long LanguageId { get; set; }
+    public int LanguageId { get; set; }
 
     public bool IsTarget { get; set; }
 

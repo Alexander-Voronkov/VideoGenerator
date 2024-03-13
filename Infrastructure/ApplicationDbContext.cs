@@ -30,10 +30,7 @@ public class ApplicationDbContext : DbContext
                 .ValueGeneratedNever();
 
             entity.Property(x => x.Text)
-                .IsRequired(true)
-                .HasColumnName("Text");
-
-            entity.ToTable(t => t.HasCheckConstraint("CK_Message_Text", "LENGTH(Text) > 1"));
+                .IsRequired(true);
 
             entity.HasOne(x => x.TargetGroup)
                 .WithMany(x => x.InputQueueMessages)
@@ -67,10 +64,7 @@ public class ApplicationDbContext : DbContext
                 .ValueGeneratedNever();
 
             entity.Property(x => x.Text)
-                .IsRequired(true)
-                .HasColumnName("Text");
-
-            entity.ToTable(t => t.HasCheckConstraint("CK_Published_Message_Text", "LENGTH(Text) > 1"));
+                .IsRequired(true);
 
             entity.HasOne(x => x.TargetGroup)
                 .WithMany(x => x.InputPublishedMessages)
@@ -142,6 +136,9 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(x => x.IsAvailable)
                 .HasDefaultValue(true);
+
+            entity.HasMany(x => x.AvailableLanguages)
+                .WithMany(x => x.Topics);
 
             entity.HasIndex(x => new { x.TopicName, x.TopicId })
                 .IsDescending(true, true)

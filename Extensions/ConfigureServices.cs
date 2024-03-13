@@ -66,43 +66,43 @@ public static partial class Extensions
             options.EnableSensitiveDataLogging();
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseMemoryCache(sp.GetRequiredService<IMemoryCache>());
-            options.UseSqlite(sp.GetRequiredService<IOptions<Configuration>>().Value.SQLITE_CONN_STRING);
+            options.UseNpgsql(sp.GetRequiredService<IOptions<Configuration>>().Value.CONNECTION_STRING);
         });
+
+        AddHttpClients(hostContext, services);
 
         services.AddHostedService<VideoMakerWorker>();
         services.AddHostedService<TelegramScraperWorker>();
         services.AddHostedService<FilmDownloaderWorker>();
-
-        AddHttpClients(hostContext, services);
     }
 
     private static void AddHttpClients(HostBuilderContext hostContext, IServiceCollection services)
     {
-        services.AddHttpClient<VideoDownloaderService>();
-        services.AddHttpClient<YoutubeMetadataScraperService>(client =>
+        services.AddHttpClient<IVideoDownloaderService, VideoDownloaderService>();
+        services.AddHttpClient<IYoutubeMetadataScraperService, YoutubeMetadataScraperService>(client =>
         {
             client.DefaultRequestHeaders.Add("X-RapidAPI-Key", hostContext.Configuration.GetValue<string>("YOUTUBE_DOWNLOAD_API_KEY"));
             client.DefaultRequestHeaders.Add("X-RapidAPI-Host", "ytstream-download-youtube-videos.p.rapidapi.com");
         });
-        services.AddHttpClient<TiktokMetadataScraperService>(client =>
+        services.AddHttpClient<ITiktokMetadataScraperService, TiktokMetadataScraperService>(client =>
         {
             client.BaseAddress = new Uri("https://tiktok-no-watermark-video1.p.rapidapi.com/video_info/");
             client.DefaultRequestHeaders.Add("X-RapidAPI-Key", hostContext.Configuration.GetValue<string>("TIKTOK_DOWNLOAD_API_KEY"));
             client.DefaultRequestHeaders.Add("X-RapidAPI-Host", "tiktok-no-watermark-video1.p.rapidapi.com");
         });
-        services.AddHttpClient<TiktokUploadVideoService>(client =>
+        services.AddHttpClient<ITiktokUploadVideoService, TiktokUploadVideoService>(client =>
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", hostContext.Configuration.GetValue<string>("TIKTOK_DATA_API_KEY"));
         });
-        services.AddHttpClient<YoutubeUploadVideoService>(client =>
+        services.AddHttpClient<IYoutubeUploadVideoService, YoutubeUploadVideoService>(client =>
         {
             client.BaseAddress = new Uri("https://www.googleapis.com/youtube/v3/");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", hostContext.Configuration.GetValue<string>("YOUTUBE_DATA_API_KEY"));
         });
-        services.AddHttpClient<TranslationService>(client =>
+        services.AddHttpClient<ITranslationService, TranslationService>(client =>
         {
             client.BaseAddress = new Uri("https://api-free.deepl.com/v2/");
         });
-        services.AddHttpClient<FilmMetadataScraperService>();
+        services.AddHttpClient<IFilmMetadataScraperService, FilmMetadataScraperService>();
     }
 }

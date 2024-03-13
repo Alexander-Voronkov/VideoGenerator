@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VideoGenerator.Infrastructure;
 
 #nullable disable
@@ -11,22 +12,26 @@ using VideoGenerator.Infrastructure;
 namespace VideoGenerator.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20240307194635_v4")]
-    partial class v4
+    [Migration("20240313210937_v1")]
+    partial class v1
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.2");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.2")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("AttachmentPublishedMessage", b =>
                 {
                     b.Property<long>("AttachmentsAttachmentId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<long>("PublishedMessagesPublishedMessageId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.HasKey("AttachmentsAttachmentId", "PublishedMessagesPublishedMessageId");
 
@@ -35,22 +40,37 @@ namespace VideoGenerator.Migrations
                     b.ToTable("AttachmentPublishedMessage");
                 });
 
+            modelBuilder.Entity("LanguageTopic", b =>
+                {
+                    b.Property<int>("AvailableLanguagesLanguageId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicsTopicId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AvailableLanguagesLanguageId", "TopicsTopicId");
+
+                    b.HasIndex("TopicsTopicId");
+
+                    b.ToTable("LanguageTopic");
+                });
+
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Attachment", b =>
                 {
                     b.Property<long>("AttachmentId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<byte[]>("Content")
-                        .HasColumnType("BLOB");
+                        .HasColumnType("bytea");
 
                     b.Property<string>("MimeType")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<long>("QueueMessageId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.HasKey("AttachmentId")
                         .HasName("PK_AttachmentId");
@@ -67,22 +87,22 @@ namespace VideoGenerator.Migrations
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Group", b =>
                 {
                     b.Property<long>("GroupId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("GroupLink")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("GroupName")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsTarget")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
-                    b.Property<long>("LanguageId")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("LanguageId")
+                        .HasColumnType("integer");
 
-                    b.Property<long>("TopicId")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
 
                     b.HasKey("GroupId")
                         .HasName("PK_GroupId");
@@ -98,20 +118,17 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Language", b =>
                 {
-                    b.Property<long>("LanguageId")
+                    b.Property<int>("LanguageId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LanguageId"));
 
                     b.Property<string>("LanguageCode")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("TopicId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("text");
 
                     b.HasKey("LanguageId")
                         .HasName("PK_LanguageId");
-
-                    b.HasIndex("TopicId");
 
                     b.HasIndex("LanguageId", "LanguageCode")
                         .IsDescending()
@@ -123,27 +140,26 @@ namespace VideoGenerator.Migrations
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
                 {
                     b.Property<long>("PublishedMessageId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("MessageID")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("PublishedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("SourceGroupId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SourceMessageId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("StolenAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("TargetGroupId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("Text");
+                        .HasColumnType("text");
 
                     b.HasKey("PublishedMessageId")
                         .HasName("PK_PublishedMessageId");
@@ -156,39 +172,34 @@ namespace VideoGenerator.Migrations
                         .IsDescending()
                         .HasDatabaseName("UI_PublishedMessageId_GroupId");
 
-                    b.ToTable("PublishedMessages", t =>
-                        {
-                            t.HasCheckConstraint("CK_Published_Message_Text", "LENGTH(Text) > 1");
-                        });
+                    b.ToTable("PublishedMessages");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.QueueMessage", b =>
                 {
                     b.Property<long>("QueueMessageId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<long>("PublishedMessageId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<long>("SourceGroupId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("StolenAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("TargetGroupId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("Text");
+                        .HasColumnType("text");
 
                     b.HasKey("QueueMessageId")
                         .HasName("PK_QueueMessageId");
 
-                    b.HasIndex("PublishedMessageId")
-                        .IsUnique();
+                    b.HasIndex("PublishedMessageId");
 
                     b.HasIndex("SourceGroupId");
 
@@ -198,20 +209,24 @@ namespace VideoGenerator.Migrations
                         .IsDescending()
                         .HasDatabaseName("UI_QueueMessageId_GroupId");
 
-                    b.ToTable("QueueMessages", t =>
-                        {
-                            t.HasCheckConstraint("CK_Message_Text", "LENGTH(Text) > 1");
-                        });
+                    b.ToTable("QueueMessages");
                 });
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Topic", b =>
                 {
-                    b.Property<long>("TopicId")
+                    b.Property<int>("TopicId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TopicId"));
+
+                    b.Property<bool>("IsAvailable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("TopicName")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.HasKey("TopicId")
                         .HasName("PK_TopicId");
@@ -234,6 +249,21 @@ namespace VideoGenerator.Migrations
                     b.HasOne("VideoGenerator.Infrastructure.Entities.PublishedMessage", null)
                         .WithMany()
                         .HasForeignKey("PublishedMessagesPublishedMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LanguageTopic", b =>
+                {
+                    b.HasOne("VideoGenerator.Infrastructure.Entities.Language", null)
+                        .WithMany()
+                        .HasForeignKey("AvailableLanguagesLanguageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoGenerator.Infrastructure.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("TopicsTopicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -268,13 +298,6 @@ namespace VideoGenerator.Migrations
                     b.Navigation("Topic");
                 });
 
-            modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Language", b =>
-                {
-                    b.HasOne("VideoGenerator.Infrastructure.Entities.Topic", null)
-                        .WithMany("AvailableLanguages")
-                        .HasForeignKey("TopicId");
-                });
-
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
                 {
                     b.HasOne("VideoGenerator.Infrastructure.Entities.Group", "SourceGroup")
@@ -297,8 +320,8 @@ namespace VideoGenerator.Migrations
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.QueueMessage", b =>
                 {
                     b.HasOne("VideoGenerator.Infrastructure.Entities.PublishedMessage", "PublishedMessage")
-                        .WithOne("QueueMessage")
-                        .HasForeignKey("VideoGenerator.Infrastructure.Entities.QueueMessage", "PublishedMessageId")
+                        .WithMany()
+                        .HasForeignKey("PublishedMessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -337,11 +360,6 @@ namespace VideoGenerator.Migrations
                     b.Navigation("Groups");
                 });
 
-            modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.PublishedMessage", b =>
-                {
-                    b.Navigation("QueueMessage");
-                });
-
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.QueueMessage", b =>
                 {
                     b.Navigation("Attachments");
@@ -349,8 +367,6 @@ namespace VideoGenerator.Migrations
 
             modelBuilder.Entity("VideoGenerator.Infrastructure.Entities.Topic", b =>
                 {
-                    b.Navigation("AvailableLanguages");
-
                     b.Navigation("Groups");
                 });
 #pragma warning restore 612, 618

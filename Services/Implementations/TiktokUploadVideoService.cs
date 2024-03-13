@@ -3,7 +3,7 @@ using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;
 
-public class TiktokUploadVideoService : ITiktokUploadVIdeoService
+public class TiktokUploadVideoService : ITiktokUploadVideoService
 {
     private readonly ILogger _logger;
     private readonly HttpClient _client;
