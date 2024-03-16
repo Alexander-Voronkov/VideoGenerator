@@ -23,6 +23,7 @@ public static class Program
                 configBuilder.AddJsonFile("logging.json");
                 configBuilder.AddJsonFile("sourcegroups.json");
                 configBuilder.AddJsonFile("generaltopics.json");
+                configBuilder.AddJsonFile("languages.json");
             })
             .ConfigureServices(ConfigureServices);
 }

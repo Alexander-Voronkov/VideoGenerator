@@ -9,6 +9,8 @@ public class Language
     /// </summary>
     public string LanguageCode { get; set; }
 
+    public bool IsAvailable { get; set; }
+
     public virtual ICollection<Topic> Topics { get; set; }
 
     public virtual ICollection<Group> Groups { get; set; }

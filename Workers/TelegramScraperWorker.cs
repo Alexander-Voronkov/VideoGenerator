@@ -7,7 +7,6 @@ using TL;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Infrastructure.Entities;
-using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using WTelegram;
 
@@ -17,27 +16,21 @@ public class TelegramScraperWorker : BackgroundService
     private readonly Client _client;
     private readonly ApplicationDbContext _context;
     private readonly ILogger<TelegramScraperWorker> _logger;
-    private readonly IOptions<Configuration> _config;
+    private readonly Configuration _config;
     private readonly ITelegramClient _telegramClient;
-    private readonly ILanguageDetectorService _languageDetectorService;
-    private readonly ITranslationService _translationService;
 
     public TelegramScraperWorker(
         Client client,
         ApplicationDbContext context,
         ILogger<TelegramScraperWorker> logger,
         IOptions<Configuration> config,
-        ITelegramClient telegramClient,
-        ILanguageDetectorService languageDetectorService,
-        ITranslationService translationService)
+        ITelegramClient telegramClient)
     {
         _client = client;
         _context = context;
         _logger = logger;
-        _config = config;
+        _config = config.Value;
         _telegramClient = telegramClient;
-        _languageDetectorService = languageDetectorService;
-        _translationService = translationService;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,13 +39,66 @@ public class TelegramScraperWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            try
+            {
+                await PublishAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Publish failed: {message} {@exception}", 
+                    ex.Message, 
+                    ex);
+            }
 
+            await Task.Delay(_config.TELEGRAM_UPDATE_DELAY, stoppingToken);
+        }
+    }
+
+    private async Task PublishAsync(CancellationToken token)
+    {
+        var message = _context
+            .QueueMessages
+            .Include(x => x.SourceGroup)
+            .Include(x => x.Attachments)
+            .FirstOrDefault();
+
+        if (message != null)
+        {
+            var topic = message.SourceGroup.TopicId;
+            var channels = _context.Groups
+                .Where(x => x.IsTarget && x.TopicId == topic)
+                .Select(x => x.GroupId)
+                .ToList();
+
+            if (channels.Any())
+            {
+                _logger.LogInformation("{messageID} Publish started",
+                    message.QueueMessageId);
+            }
+            else
+            {
+                _logger.LogWarning("Publish failed: Target channels for topic {topicID} not found", topic);
+            }
+
+            foreach (var channel in channels)
+            {
+                await _telegramClient.SendMessage(channel, message, token);
+                await Task.Delay(Random.Shared.Next(10000, 20000), token);
+            }
+
+            _context.QueueMessages.Remove(message);
+            await _context.SaveChangesAsync(token);
+            _logger.LogInformation("{messageID} Publish finished", message.QueueMessageId);
+        }
+        else
+        {
+            _logger.LogWarning("Publish failed: Message queue is empty");
         }
     }
 
     private async Task RunScrapperAsync(CancellationToken stoppingToken = default)
     {
-        var loginInfo = _config.Value.TELEGRAM_API_PHONE;
+        var loginInfo = _config.TELEGRAM_API_PHONE;
         while (_client.User is null)
         {
             switch (await _client.Login(loginInfo)) // returns which config is needed to continue login
@@ -90,6 +136,8 @@ public class TelegramScraperWorker : BackgroundService
                 .Select(x => new Language
                 {
                     LanguageCode = x.TwoLetterISOLanguageName,
+                    IsAvailable = _config.AVAILABLE_LANGUAGES
+                        .Contains(x.TwoLetterISOLanguageName)
                 })
                 .Skip(1)
                 .ToArray();
@@ -103,7 +151,7 @@ public class TelegramScraperWorker : BackgroundService
             .AsNoTracking()
             .ToArray();
 
-        var missingTopics = _config.Value.GENERAL_TOPICS
+        var missingTopics = _config.GENERAL_TOPICS
             .Where(t => !topics.Any(x => x.TopicName == t))
             .ToArray();
 
@@ -129,7 +177,7 @@ public class TelegramScraperWorker : BackgroundService
         if (groups.Length == 0)
         {
             var result = channels
-                .Where(x => _config.Value.SOURCE_GROUPS
+                .Where(x => _config.SOURCE_GROUPS
                     .Any(s => s
                         .Split('/')
                         .Last() == x.Value.MainUsername))
@@ -145,6 +193,21 @@ public class TelegramScraperWorker : BackgroundService
             await _context.Groups.AddRangeAsync(result, token);
 
             await _context.SaveChangesAsync(token);
+
+            groups = result.ToArray();
+        }
+
+        var targetGroups = groups.Where(x => x.IsTarget);
+        foreach (var topic in topics)
+        {
+            foreach (var language in languages.Where(x => x.IsAvailable))
+            {
+                if(!targetGroups.Any(x => x.LanguageId == language.LanguageId && x.TopicId == topic.TopicId))
+                {
+                    await _telegramClient.CreateGroup(language, topic);
+                    await Task.Delay(Random.Shared.Next(10000, 40000), token);
+                }
+            }
         }
     }
 }

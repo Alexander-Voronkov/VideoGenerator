@@ -14,6 +14,9 @@ public class Configuration
     public string TELEGRAM_API_PHONE { get; set; }
     public string DETECT_LANGUAGE_API_KEY { get; set; }
     public string DEEPL_API_KEY { get; set; }
+    public string[] AVAILABLE_LANGUAGES { get; set; }
     public string[] SOURCE_GROUPS { get; set; }
     public string[] GENERAL_TOPICS { get; set; }
+    public int TELEGRAM_UPDATE_DELAY { get; set; }
+    public int TELEGRAM_OPERATIONS_DELAY { get; set; }
 }

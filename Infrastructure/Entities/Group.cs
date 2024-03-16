@@ -25,11 +25,6 @@ public class Group
     public virtual Language Language { get; set; }
 
     /// <summary>
-    /// Messages that will be published to this group
-    /// </summary>
-    public virtual ICollection<QueueMessage> InputQueueMessages { get; set; }
-
-    /// <summary>
     /// Messages that are stolen from this group
     /// </summary>
     public virtual ICollection<QueueMessage> OutputQueueMessages { get; set; }

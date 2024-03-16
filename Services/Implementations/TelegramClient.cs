@@ -56,7 +56,7 @@ public class TelegramClient : ITelegramClient
         }
     }
 
-    private async Task SendMessage(int channelId, QueueMessage message, CancellationToken cancelationToken)
+    public async Task SendMessage(long channelId, QueueMessage message, CancellationToken cancelationToken)
     {
         var channel = _context
             .Groups
@@ -71,10 +71,13 @@ public class TelegramClient : ITelegramClient
 
         if(channel != null && input != null)
         {
-            var translatedText = await _translationService.Translate(
+            var translatedText = (await _translationService.Translate(
                 message.Text, 
                 new CultureInfo(channel.Language.LanguageCode), 
-                cancelationToken);
+                cancelationToken))
+                .Translations?
+                .FirstOrDefault()?
+                .WordText;
 
             var attachments = new List<InputMedia>();
             foreach (var attachment in message.Attachments)
@@ -88,13 +91,84 @@ public class TelegramClient : ITelegramClient
 
                 attachments.Add(media);
             }
+            List<Message> messages = new List<Message>();
+            if(attachments.Count > 0)
+            {
+                var sendedMessage = await _client
+                    .SendAlbumAsync(
+                        input,
+                        attachments,
+                        translatedText ?? string.Empty);
 
-            var sendedMessage = await _client.SendAlbumAsync(
-                input,
-                attachments,
-                translatedText.Translations.FirstOrDefault().WordText);
+                messages.AddRange(sendedMessage);
+            }
+            else
+            {
+                var sendedMessage = await _client.SendMessageAsync(input, translatedText ?? string.Empty);
+                messages.Add(sendedMessage);
+            }
 
-            // TODO: Save sended message
+            var published = new PublishedMessage
+            {
+                PublishedMessageId = messages[0].grouped_id > 0
+                    ? messages[0].grouped_id
+                    : messages[0].ID,
+                SourceGroupId = message.SourceGroupId,
+                TargetGroupId = channel.GroupId,
+                PublishedAt = DateTime.UtcNow,
+                SourceMessageId = message.QueueMessageId,
+                Text = translatedText ?? string.Empty,
+                StolenAt = message.StolenAt
+            };
+
+            _context.PublishedMessages.Add(published);
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task CreateGroup(Language language, Topic topic)
+    {
+        var group = new Group
+        {
+            TopicId = topic.TopicId,
+            IsTarget = true,
+            LanguageId = language.LanguageId,
+            GroupName = $"{language.LanguageCode} {topic.TopicName}"
+        };
+
+        var updates = await _client.Channels_CreateChannel(group.GroupName, group.GroupName, broadcast: true);
+        foreach (var update in updates.UpdateList)
+        {
+            if (update is UpdateChannel channel)
+            {
+                group.GroupId = channel.channel_id;
+                var channelChannel = (await _client.Messages_GetAllChats())
+                    .chats
+                    .FirstOrDefault(x => x.Key == channel.channel_id);
+
+                group.GroupLink = channelChannel.Value.MainUsername;
+
+                var path = Path.Combine(Environment.CurrentDirectory, "Resources");
+                var files = Directory.GetFiles(path).Where(x => Path.GetFileName(x).StartsWith(topic.TopicName)).ToArray();
+
+                var filePath = files[Random.Shared.Next(0, files.Length - 1)];
+
+                var file = await _client
+                    .UploadFileAsync(filePath, 
+                    (long transmitted, long totalSize) => _logger.LogInformation("{trans}{oleg}", transmitted, totalSize));
+
+                try
+                {
+                    await _client.Channels_EditPhoto(channelChannel.Value.ToInputPeer() as InputPeerChannel, file.ToInputChatPhoto());
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError("Failed to update photo: {ex}; {photo} {@ex}", ex.Message, filePath, ex);
+                }
+
+                _context.Groups.Add(group);
+                await _context.SaveChangesAsync();
+            }
         }
     }
 

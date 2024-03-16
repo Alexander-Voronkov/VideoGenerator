@@ -32,12 +32,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Text)
                 .IsRequired(true);
 
-            entity.HasOne(x => x.TargetGroup)
-                .WithMany(x => x.InputQueueMessages)
-                .HasForeignKey(x => x.TargetGroupId)
-                .IsRequired(true)
-                .OnDelete(DeleteBehavior.NoAction);
-
             entity.HasOne(x => x.SourceGroup)
                 .WithMany(x => x.OutputQueueMessages)
                 .HasForeignKey(x => x.SourceGroupId)
@@ -50,8 +44,8 @@ public class ApplicationDbContext : DbContext
                 .IsRequired(true)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasIndex(x => new { x.QueueMessageId, x.TargetGroupId, x.SourceGroupId })
-                .IsDescending(true, true, true)
+            entity.HasIndex(x => new { x.QueueMessageId, x.SourceGroupId })
+                .IsDescending(true, true)
                 .HasDatabaseName("UI_QueueMessageId_GroupId");
         });
 
@@ -102,11 +96,6 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Language)
                 .WithMany(x => x.Groups)
                 .HasForeignKey(x => x.LanguageId)
-                .IsRequired(true);
-
-            entity.HasMany(x => x.InputQueueMessages)
-                .WithOne(x => x.TargetGroup)
-                .HasForeignKey(x => x.TargetGroupId)
                 .IsRequired(true);
 
             entity.HasMany(x => x.OutputPublishedMessages)

@@ -6,20 +6,11 @@ public class QueueMessage
 
     public long SourceGroupId { get; set; }
 
-    public long TargetGroupId { get; set; }
-
     public long PublishedMessageId { get; set; }
 
     public string Text { get; set; }
 
     public DateTime StolenAt { get; set; }
-
-    public virtual PublishedMessage PublishedMessage { get; set; }
-
-    /// <summary>
-    /// A group this message will be published to
-    /// </summary>
-    public virtual Group TargetGroup { get; set; }
 
     /// <summary>
     /// A group this message is stolen from
