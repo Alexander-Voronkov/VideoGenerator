@@ -1,5 +1,8 @@
 ﻿using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Net.Http.Json;
+using VideoGenerator.Configurations;
 using VideoGenerator.Exceptions;
 using VideoGenerator.Extensions;
 using VideoGenerator.Infrastructure;
@@ -11,24 +14,37 @@ namespace VideoGenerator.Services.Implementations;
 public class FilmMetadataScraperService : IFilmMetadataScraperService
 {
     private readonly ILogger _logger;
-    private readonly HttpClient _client;
+    private readonly IOptions<Configuration> _config;
+    private readonly HttpClient _omdbClient;
+    private readonly HttpClient _tmdbClient;
+    private readonly HttpClient _kinopoiskClient;
+    private readonly HttpClient _hdrezkaClient;
     private readonly ApplicationDbContext _context;
     private readonly HtmlDocument _doc;
 
     public FilmMetadataScraperService(
         ILogger<FilmMetadataScraperService> logger,
-        HttpClient client,
+        IOptions<Configuration> config,
+        IHttpClientFactory clientFactory,
         ApplicationDbContext context)
     {
         _logger = logger;
-        _client = client;
+        _config = config;
+        _omdbClient = clientFactory.CreateClient("OMDB");
+        _tmdbClient = clientFactory.CreateClient("TMDB");
+        _kinopoiskClient = clientFactory.CreateClient("KINOPOISK");
+        _hdrezkaClient = clientFactory.CreateClient("HDREZKA");
         _context = context;
         _doc = new();
     }
 
     public async Task<FilmMetadata[]> GetPopularFilmsListAsync(CancellationToken token = default)
     {
-        throw new NotImplementedException();
+        var films = await _omdbClient
+            .GetFromJsonAsync<FilmMetadata[]>($"" +
+            $"&");
+
+        return films;
     }
 
     public async Task<FilmMetadata> GetFilmMetadataAsync(string filmName, CancellationToken token = default)
@@ -38,7 +54,7 @@ public class FilmMetadataScraperService : IFilmMetadataScraperService
 
     public async Task<string[]> GetSearchResultsByFilmNameAsync(string filmName, CancellationToken token = default)
     {
-        var result = await _client.GetAsync($"https://rezka.cc/ajax_search" +
+        var result = await _hdrezkaClient.GetAsync($"https://rezka.cc/ajax_search" +
             $"?q={filmName}", token);
 
         if (!result.IsSuccessStatusCode)
@@ -60,7 +76,7 @@ public class FilmMetadataScraperService : IFilmMetadataScraperService
 
     public async Task<DownloadLink[]> GetFilmDownloadLinksAsync(string filmLink, CancellationToken token = default)
     {
-        var result = await _client.GetAsync($"https://rezka.cc/{filmLink}");
+        var result = await _hdrezkaClient.GetAsync(filmLink);
 
         if (!result.IsSuccessStatusCode)
         {

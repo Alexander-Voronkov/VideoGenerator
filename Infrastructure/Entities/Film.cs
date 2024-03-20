@@ -11,4 +11,5 @@ public class Film
     public byte[] Content { get; set; }
     public string MimeType { get; set; }
     public string Language { get; set; }
+    public bool IsPublished { get; set; }
 }

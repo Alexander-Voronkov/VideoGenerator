@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Drawing;
-using VideoGenerator.AllConstants;
 using VideoGenerator.Exceptions;
 using VideoGenerator.Extensions;
 using VideoGenerator.Services.Interfaces;
@@ -315,7 +314,7 @@ public class VideoProcessingService : IVideoProcessingService
             ?? _fonts.ElementAt(Random.Shared.Next(0, _fonts.Count)) ?? fontName;
         var stream = inputFileInfo.VideoStreams.FirstOrDefault();
         var color = Color.FromKnownColor(textColor).ToHexColor();
-        var position = string.Format(Constants.Positions[textPosition], leftPadding, topPadding);
+        var position = textPosition.ToFFMpegPosition(leftPadding, topPadding);
         var videoStream = inputFileInfo.VideoStreams.First();
         fontSize ??= videoStream.Height / 15;
         startTime ??= TimeSpan.FromSeconds(0);

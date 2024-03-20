@@ -9,8 +9,8 @@ using Microsoft.Extensions.Options;
 using OpenAI_API;
 using Serilog;
 using System.Net.Http.Headers;
-using System.Speech.Synthesis;
 using System.Text;
+using TMDbLib.Client;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Infrastructure.Interceptors;
@@ -25,55 +25,64 @@ public static partial class Extensions
 {
     public static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
-        services.Configure<Configuration>(hostContext.Configuration);
-        services.AddSerilog(logger =>
+        //configuration
+        services.Configure<Configuration>(hostContext.Configuration)
+
+        // logging
+        .AddSerilog(logger =>
         {
             Console.OutputEncoding = Encoding.UTF8;
             logger.ReadFrom.Configuration(hostContext.Configuration);
-        });
+        })
 
-        services.AddSingleton<ICancellationTokenHandlerService, CancellationTokenHandlerService>();
-        services.AddSingleton<ISaveChangesInterceptor, AuditableEntityInterceptor>();
-        services.AddSingleton<ITelegramClient, TelegramClient>();
-        services.AddSingleton<ILanguageDetectorService, LanguageDetectorService>();
-        services.AddSingleton<Client>((sp) =>
+        //singleton services
+        .AddSingleton<ICancellationTokenHandlerService, CancellationTokenHandlerService>()
+        .AddSingleton<ISaveChangesInterceptor, AuditableEntityInterceptor>()
+        .AddSingleton<ITelegramClient, TelegramClient>()
+        .AddSingleton<ILanguageDetectorService, LanguageDetectorService>()
+        .AddSingleton<Client>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
             return new(config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH);
-        });
-        services.AddSingleton<OpenAIAPI>((sp) =>
+        })
+        .AddSingleton<OpenAIAPI>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
             return new(config.CHAT_API_KEY);
-        });
-        services.AddSingleton<DetectLanguageClient>((sp) =>
+        })
+        .AddSingleton<DetectLanguageClient>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
             return new(config.DETECT_LANGUAGE_API_KEY);
-        });
-        services.AddSingleton<SpeechSynthesizer>((sp) =>
+        })
+        .AddSingleton<TMDbClient>(sp =>
         {
-            return new();
-        });
+            var config = sp.GetRequiredService<IOptions<Configuration>>().Value;
+            return new(config.TMDB_API_KEY);
+        })
 
-        services.AddTransient(
+        // transient services
+        .AddTransient(
             typeof(CancellationToken),
-            sp => sp.GetRequiredService<ICancellationTokenHandlerService>().Token);
+            sp => sp.GetRequiredService<ICancellationTokenHandlerService>().Token)
 
-        services.AddMemoryCache();
-        services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
+        // infrastructure services
+        .AddMemoryCache()
+        .AddDbContextPool<ApplicationDbContext>((sp, options) =>
         {
+            options.UseLazyLoadingProxies();
             options.EnableSensitiveDataLogging();
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseMemoryCache(sp.GetRequiredService<IMemoryCache>());
             options.UseNpgsql(sp.GetRequiredService<IOptions<Configuration>>().Value.CONNECTION_STRING);
-        });
+        })
+
+        // add hosted services
+        .AddHostedService<VideoMakerWorker>()
+        .AddHostedService<TelegramScraperWorker>()
+        .AddHostedService<FilmDownloaderWorker>();
 
         AddHttpClients(hostContext, services);
-
-        services.AddHostedService<VideoMakerWorker>();
-        services.AddHostedService<TelegramScraperWorker>();
-        services.AddHostedService<FilmDownloaderWorker>();
     }
 
     private static void AddHttpClients(HostBuilderContext hostContext, IServiceCollection services)
@@ -103,6 +112,18 @@ public static partial class Extensions
         {
             client.BaseAddress = new Uri("https://api-free.deepl.com/v2/");
         });
-        services.AddHttpClient<IFilmMetadataScraperService, FilmMetadataScraperService>();
+        services.AddHttpClient("OMDB", client =>
+        {
+            client.BaseAddress = new Uri($"http://www.omdbapi.com/?apikey={hostContext.Configuration.GetValue<string>("OMDB_API_KEY")}");
+        });
+        services.AddHttpClient("KINOPOISK", client =>
+        {
+            client.DefaultRequestHeaders.Add("x-api-key", hostContext.Configuration.GetValue<string>("KINOPOISK_API_KEY"));
+            client.BaseAddress = new Uri("https://kinopoiskapiunofficial.tech/api/v2.2/");
+        });
+        services.AddHttpClient("HDREZKA", client =>
+        {
+            client.BaseAddress = new Uri("https://rezka.cc/");
+        });
     }
 }

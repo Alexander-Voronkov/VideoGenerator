@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="DetectLanguage" Version="1.0.0" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.59" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="8.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -22,6 +23,7 @@
     <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="TMDbLib" Version="2.2.0" />
     <PackageReference Include="WTelegramClient" Version="3.6.6" />
     <PackageReference Include="System.Speech" Version="8.0.0" />
     <PackageReference Include="Xabe.FFmpeg" Version="5.2.6" />
@@ -196,6 +198,10 @@
     <None Update="sourcegroups.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Constants\" />
   </ItemGroup>
   
 </Project>
