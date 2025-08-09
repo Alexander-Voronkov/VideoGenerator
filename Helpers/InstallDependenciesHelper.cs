@@ -127,7 +127,7 @@ public static class InstallDependenciesHelper
     {
         await InstallChoco(token);
         await Task.WhenAll(InstallFFmpeg(token), InstallPython(token));
-        await InstallWhisper(token);
+        //await InstallWhisper(token);
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ public static class InstallDependenciesHelper
         var process = Process.Start(new ProcessStartInfo()
         {
             FileName = "cmd",
-            Arguments = "/c choco --list",
+            Arguments = "/c choco list",
             RedirectStandardOutput = true,
             CreateNoWindow = true,
         });

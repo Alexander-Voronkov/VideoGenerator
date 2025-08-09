@@ -58,4 +58,9 @@ public interface IVideoProcessingService
         string ouputFilePath,
         TimeSpan timing,
         CancellationToken token = default);
+    Task AddSubtitlesAsync(
+        string inputVideoPath,
+        string outputVideoPath,
+        string subtitlesPath,
+        CancellationToken token = default);
 }
