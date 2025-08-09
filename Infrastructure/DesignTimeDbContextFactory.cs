@@ -8,7 +8,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql("User ID=user;Password=secret;Host=localhost;Port=5432;Database=StolenDataDB;Pooling=true;Connection Lifetime=0;");
+        optionsBuilder.UseNpgsql("User ID=se;Password=secretsecret;Host=postgres;Port=5432;Database=brainrotdb;Pooling=true;Connection Lifetime=180;");
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }

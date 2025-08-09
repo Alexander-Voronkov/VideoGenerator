@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Drawing;
-using VideoGenerator.Exceptions;
 using VideoGenerator.Extensions;
 using VideoGenerator.Services.Interfaces;
 using Xabe.FFmpeg;
@@ -44,12 +43,12 @@ public class VideoProcessingService : IVideoProcessingService
 
         if (!attachedAudioInfo.AudioStreams.Any())
         {
-            throw new VideoProcessingError("No audio stream found in the input audio file.");
+            throw new Exception("No audio stream found in the input audio file.");
         }
 
         if (!videoInfo.VideoStreams.Any())
         {
-            throw new VideoProcessingError("No video stream found in the input video file.");
+            throw new Exception("No video stream found in the input video file.");
         }
 
         var conversion = await FFmpeg.Conversions.FromSnippet.AddAudio(inputFilePath, audioPath, outputFilePath);
@@ -74,7 +73,7 @@ public class VideoProcessingService : IVideoProcessingService
 
         if (!inputFileInfo.AudioStreams.Any())
         {
-            throw new VideoProcessingError("No audio stream found in the input video file.");
+            throw new Exception("No audio stream found in the input video file.");
         }
 
         var conversion = await FFmpeg.Conversions.FromSnippet.ExtractAudio(inputFilePath, outputAudioPath);
@@ -101,12 +100,12 @@ public class VideoProcessingService : IVideoProcessingService
 
         if (!inputFileInfo.VideoStreams.Any())
         {
-            throw new VideoProcessingError("Cannot take snapshot because there are no video streams in the input video.");
+            throw new Exception("Cannot take snapshot because there are no video streams in the input video.");
         }
 
         if (inputFileInfo.Duration < timing)
         {
-            throw new VideoProcessingError("Cannot take snapshot because there is no such timing in the video.");
+            throw new Exception("Cannot take snapshot because there is no such timing in the video.");
         }
 
         var conversion = await FFmpeg.Conversions.FromSnippet.Snapshot(
@@ -132,7 +131,7 @@ public class VideoProcessingService : IVideoProcessingService
     {
         if (inputFilePaths.Length <= 1)
         {
-            throw new VideoProcessingError("Not enough input files parameters.");
+            throw new Exception("Not enough input files parameters.");
         }
 
         var conversion = await FFmpeg.Conversions.FromSnippet.Concatenate(outputFilePath, inputFilePaths);
@@ -227,7 +226,7 @@ public class VideoProcessingService : IVideoProcessingService
 
         if (inputVideoInfo.Duration <= startPoint)
         {
-            throw new VideoProcessingError($"Cannot start splitting from {startPoint} as the video duration is {inputVideoInfo.Duration}");
+            throw new Exception($"Cannot start splitting from {startPoint} as the video duration is {inputVideoInfo.Duration}");
         }
 
         var conversion = await FFmpeg.Conversions.FromSnippet.Split(inputFilePath, outputFilePath, startPoint, videoLength);
@@ -307,7 +306,7 @@ public class VideoProcessingService : IVideoProcessingService
 
         if (!inputFileInfo.VideoStreams.Any())
         {
-            throw new VideoProcessingError("Cannot write text on a file without video stream.");
+            throw new Exception("Cannot write text on a file without video stream.");
         }
 
         var font = _fonts.FirstOrDefault(x => x.Contains(fontName, StringComparison.InvariantCultureIgnoreCase))

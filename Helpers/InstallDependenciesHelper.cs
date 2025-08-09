@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using VideoGenerator.Exceptions;
 
 namespace VideoGenerator.Helpers;
 
@@ -29,7 +28,7 @@ public static class InstallDependenciesHelper
 
             if (process.ExitCode != 0)
             {
-                throw new InstallationFailedError($"An error occured while installing dependency: {nameof(InstallPython)}");
+                throw new Exception($"An error occured while installing dependency: {nameof(InstallPython)}");
             }
         }
     }
@@ -56,7 +55,7 @@ public static class InstallDependenciesHelper
 
             if (process.ExitCode != 0)
             {
-                throw new InstallationFailedError($"An error occured while installing dependency: {nameof(InstallChoco)}");
+                throw new Exception($"An error occured while installing dependency: {nameof(InstallChoco)}");
             }
         }
     }
@@ -85,7 +84,7 @@ public static class InstallDependenciesHelper
 
             if (process.ExitCode != 0)
             {
-                throw new InstallationFailedError($"An error occured while installing dependency: {nameof(InstallWhisper)}");
+                throw new Exception($"An error occured while installing dependency: {nameof(InstallWhisper)}");
             }
         }
     }
@@ -115,7 +114,7 @@ public static class InstallDependenciesHelper
 
             if (process.ExitCode != 0)
             {
-                throw new InstallationFailedError($"An error occured while installing dependency: {nameof(InstallFFmpeg)}");
+                throw new Exception($"An error occured while installing dependency: {nameof(InstallFFmpeg)}");
             }
         }
     }

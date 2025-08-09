@@ -1,7 +1,5 @@
 ﻿using DetectLanguage;
-using Microsoft.Extensions.Options;
 using System.Globalization;
-using VideoGenerator.Configurations;
 using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;
@@ -9,11 +7,10 @@ namespace VideoGenerator.Services.Implementations;
 public class LanguageDetectorService : ILanguageDetectorService
 {
     private readonly DetectLanguageClient _languageDetector;
-    private readonly IOptions<Configuration> _config;
 
-    public LanguageDetectorService(IOptions<Configuration> config, DetectLanguageClient detectLanguageClient)
+    public LanguageDetectorService(
+        DetectLanguageClient detectLanguageClient)
     {
-        _config = config;
         _languageDetector = detectLanguageClient;
     }
 

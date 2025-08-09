@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using VideoGenerator.Exceptions;
 using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;
@@ -32,7 +31,7 @@ public class SubtitleGeneratorService : ISubtitleGeneratorService
 
         if (subtitleProcess.ExitCode != 0)
         {
-            throw new SubtitleGenerationError($"An error occured while trying to transcribe the video: {await subtitleProcess.StandardOutput.ReadToEndAsync()}");
+            throw new Exception($"An error occured while trying to transcribe the video: {await subtitleProcess.StandardOutput.ReadToEndAsync()}");
         }
     }
 }

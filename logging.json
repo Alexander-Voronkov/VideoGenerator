@@ -1,6 +1,6 @@
 {
   "Serilog": {
-    "Using": [ "Serilog.Sinks.Console", "Serilog.Sinks.File" ],
+    "Using": [ "Serilog.Sinks.Console", "VideoGenerator" ],
     "MinimumLevel": {
       "Default": "Information",
       "Override": {
@@ -12,8 +12,12 @@
         "Name": "Console"
       },
       {
-        "Name": "File",
-        "Args": { "path": "logs.txt" }
+        "Name": "Telegram",
+        "Args": {
+          "chatId": "-4807951205",
+          "token": "8398300571:AAGoOlrO9LbwmmH4pRWyr4JenFc21Vvw8cE",
+          "outputTemplate": "{Service}: {Message}"
+        }
       }
     ],
     "Enrich": [ "FromLogContext", "WithMachineName", "WithThreadId" ]

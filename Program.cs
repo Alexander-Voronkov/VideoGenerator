@@ -11,8 +11,7 @@ public static class Program
     public static async Task Main(string[] args)
     {
         var host = CreateHostBuilder(args).Build();
-        var tokenHandler = host.Services.GetRequiredService<ICancellationTokenHandlerService>();
-        await host.RunAsync(tokenHandler.Token);
+        await host.RunAsync();
     }
 
     public static IHostBuilder CreateHostBuilder(string[] args)
@@ -21,9 +20,6 @@ public static class Program
             {
                 configBuilder.AddJsonFile("appsettings.json");
                 configBuilder.AddJsonFile("logging.json");
-                configBuilder.AddJsonFile("sourcegroups.json");
-                configBuilder.AddJsonFile("generaltopics.json");
-                configBuilder.AddJsonFile("languages.json");
             })
-            .ConfigureServices(ConfigureServices);
+			.ConfigureServices(ConfigureServices);
 }
