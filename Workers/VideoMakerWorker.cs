@@ -17,18 +17,18 @@ public class VideoMakerWorker : BackgroundService
     {
         await InstallDependenciesHelper.InstallAllDependencies(token);
         await Task.Delay(1);
-		try
-        {
-            while (!token.IsCancellationRequested)
-            {
+        while (!token.IsCancellationRequested)
+		{
+			try
+			{
 				_logger.LogInformation("VideoMakerWorker started successfully");
 				_logger.LogError("VideoMakerWorker failed successfully");
-				await Task.Delay(1000);
 			}
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(exception: ex, message: ex.Message);
-        }
+			catch (Exception ex)
+			{
+				_logger.LogError(exception: ex, message: ex.Message);
+			}
+			await Task.Delay(1000);
+		}
     }
 }

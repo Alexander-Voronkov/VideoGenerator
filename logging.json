@@ -16,7 +16,7 @@
         "Args": {
           "chatId": "-4807951205",
           "token": "8398300571:AAGoOlrO9LbwmmH4pRWyr4JenFc21Vvw8cE",
-          "outputTemplate": "{Service}: {Message}"
+          "outputTemplate": "{Message}"
         }
       }
     ],
