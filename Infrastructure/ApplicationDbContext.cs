@@ -9,4 +9,11 @@ public class ApplicationDbContext : DbContext
         : base(options)
     {
     }
+
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
+	{
+		base.OnModelCreating(modelBuilder);
+
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+	}
 }
