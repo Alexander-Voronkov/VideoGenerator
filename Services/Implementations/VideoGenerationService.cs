@@ -37,14 +37,16 @@ public class VideoGenerationService : IVideoGenerationService
 
         // Trim background clip to match audio length
         var trimmedBackground = Path.Combine(Path.GetTempPath(), $"trimmed_bg_{Guid.NewGuid()}.mp4");
-        await _videoService.SplitAtAsync(backgroundVideoPath, trimmedBackground, randomStart, bgDuration);
+        await _videoService.SplitAtAsync(backgroundVideoPath, trimmedBackground, randomStart, audioDuration);
         var styledSubtitle = Path.Combine(Path.GetTempPath(), $"styled_{Guid.NewGuid()}.ass");
         ConvertSrtToStyledAss(subtitlePath, styledSubtitle);
+
+        //var styledSubtitle = "C:\\Users\\Zoranais\\source\\repos\\VideoGaynerator\\testaudio.ass";
 
         var backgroundWithSound = Path.Combine(Path.GetTempPath(), $"bg_sound{Guid.NewGuid()}.mp4");
         await _videoService.AttachAudioAsync(audioPath, trimmedBackground, backgroundWithSound);
 
-        await _videoService.AddSubtitlesAsync(backgroundWithSound, outputPath, styledSubtitle);
+        await _videoService.AddSubtitlesAsync(backgroundWithSound, outputPath, assPath: styledSubtitle);
 
         // Clean temp files
         try
@@ -59,11 +61,13 @@ public class VideoGenerationService : IVideoGenerationService
     {
         var style = "[Script Info]\n" +
                     "ScriptType: v4.00+\n" +
+                    "PlayResX: 384\n" +
+                    "PlayResY: 288\n" +
+                    "ScaledBorderAndShadow: yes\n" +
                     "\n" +
                     "[V4+ Styles]\n" +
-                    "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, " +
-                    "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n" +
-                    "Style: Default,Arial,36,&H00FFFFFF,&H000000FF,&H00000000,-1,0,0,0,100,100,0,0,1,2,0,2,10,10,30,1\n" +
+                    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n" +
+                    "Style: Default,Arial,16,yellow,green,white,red,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,0\n" +
                     "\n" +
                     "[Events]\n" +
                     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
@@ -86,8 +90,8 @@ public class VideoGenerationService : IVideoGenerationService
 
             // Time line
             var timeParts = srtLines[i++].Split(new[] { " --> " }, StringSplitOptions.None);
-            var start = timeParts[0].Replace(",", ".");
-            var end = timeParts[1].Replace(",", ".");
+            var start = timeParts[0].Replace(",", ".").Substring(0, timeParts[0].Length - 1);
+            var end = timeParts[1].Replace(",", ".").Substring(0, timeParts[0].Length - 1);
 
             // Subtitle text
             var textBuilder = new StringBuilder();

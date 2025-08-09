@@ -11,6 +11,7 @@ public class VideoProcessingService : IVideoProcessingService
 {
     private readonly ILogger _logger;
     private readonly ConcurrentBag<string> _fonts;
+    private int lastProgress = 0;
 
     public VideoProcessingService(ILogger<VideoProcessingService> logger)
     {
@@ -51,7 +52,18 @@ public class VideoProcessingService : IVideoProcessingService
             throw new Exception("No video stream found in the input video file.");
         }
 
-        var conversion = await FFmpeg.Conversions.FromSnippet.AddAudio(inputFilePath, audioPath, outputFilePath);
+        var conversion = FFmpeg.Conversions.New()
+            // Input video
+            .AddParameter($"-i \"{inputFilePath}\"", ParameterPosition.PreInput)
+            // Input audio
+            .AddParameter($"-i \"{audioPath}\"", ParameterPosition.PreInput)
+            // Map video and audio streams
+            .AddParameter("-c:v copy -c:a aac -map 0:v:0 -map 1:a:0")
+            // Overwrite without asking
+            .AddParameter("-y")
+            // Output path
+            .SetOutput(outputFilePath).SetOverwriteOutput(true);
+        conversion.OnProgress += Conversion_OnProgress;
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Audio attaching took {result.Duration.TotalSeconds} seconds.");
@@ -229,7 +241,10 @@ public class VideoProcessingService : IVideoProcessingService
             throw new Exception($"Cannot start splitting from {startPoint} as the video duration is {inputVideoInfo.Duration}");
         }
 
-        var conversion = await FFmpeg.Conversions.FromSnippet.Split(inputFilePath, outputFilePath, startPoint, videoLength);
+        var conversion = FFmpeg.Conversions.New()
+            .AddParameter($"-ss {startPoint} -i \"{inputFilePath}\" -t {videoLength} -c copy \"{outputFilePath}\"")
+            .AddParameter("-r 29.97");
+        conversion.OnProgress += Conversion_OnProgress;
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Splitting of the video took {result.Duration.TotalSeconds} seconds.");
@@ -340,16 +355,45 @@ public class VideoProcessingService : IVideoProcessingService
     public async Task AddSubtitlesAsync(
         string inputVideoPath,
         string outputVideoPath,
-        string subtitlesPath,
+        string subtitlesPath = null,
+        string assPath = null,
         CancellationToken token = default)
     {
-        var conversion = await FFmpeg.Conversions.FromSnippet.AddSubtitle(
-            inputVideoPath,
-            outputVideoPath,
-            subtitlesPath);
+        var conversion = FFmpeg.Conversions.New()
+            .AddParameter($"-i \"{inputVideoPath}\"", ParameterPosition.PreInput);
+
+        if (subtitlesPath == null && assPath == null) {
+            throw new InvalidOperationException("No subtitles specified");
+        }
+
+        if (subtitlesPath != null)
+        {
+            conversion = conversion.AddParameter($"-vf \"subtitles=\'{subtitlesPath.Replace("\\", "\\\\").Replace(":", "\\:")}\'\"");
+        }
+
+        if (assPath != null)
+        {
+            conversion = conversion.AddParameter($"-vf \"ass=\'{assPath.Replace("\\", "\\\\").Replace(":", "\\:")}\'\"");
+        }
+
+        conversion = conversion
+            .AddParameter("-c:a copy")
+            .AddParameter("-r 29.97")
+            .SetOutput(outputVideoPath)
+            .SetOverwriteOutput(true);
+
+        conversion.OnProgress += Conversion_OnProgress;
 
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Adding subtitles took {result.Duration.TotalSeconds}");
+    }
+
+    private void Conversion_OnProgress(object sender, Xabe.FFmpeg.Events.ConversionProgressEventArgs args)
+    {
+        if (lastProgress != 0 && Math.Abs(args.Percent - lastProgress) <= 5) return;
+        lastProgress = args.Percent;
+
+        _logger.LogInformation(message: $"Generating - {args.Percent}%");
     }
 }

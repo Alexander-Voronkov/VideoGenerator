@@ -58,7 +58,7 @@ public class VideoMakerWorker : BackgroundService
 			{
 				_logger.LogError(exception: ex, message: ex.Message);
 			}
-			await Task.Delay(1000);
+			await Task.Delay(1000000);
 		}
     }
 }

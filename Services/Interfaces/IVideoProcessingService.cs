@@ -61,6 +61,7 @@ public interface IVideoProcessingService
     Task AddSubtitlesAsync(
         string inputVideoPath,
         string outputVideoPath,
-        string subtitlesPath,
+        string subtitlesPath = null,
+        string assPath = null,
         CancellationToken token = default);
 }
