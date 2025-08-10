@@ -23,7 +23,7 @@ public class SubtitleGeneratorService : ISubtitleGeneratorService
         var subtitleProcess = Process.Start(new ProcessStartInfo()
         {
             FileName = "whisper",
-            Arguments = $"{inputVideoPath} --model small --output_dir {Path.GetDirectoryName(outputSubtitlesPath)} --output_format srt",
+            Arguments = $"{inputVideoPath} --model small --output_dir {Path.GetDirectoryName(outputSubtitlesPath)} --word_timestamps True --max_line_width 25 --max_line_count 1 --output_format srt",
             CreateNoWindow = true,
         });
 

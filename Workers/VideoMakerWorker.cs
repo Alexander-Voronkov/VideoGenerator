@@ -46,7 +46,7 @@ public class VideoMakerWorker : BackgroundService
 				_logger.LogInformation("VideoMakerWorker started successfully");
 
 				//var subtitlesName = outputPath +"subtitle" + Guid.NewGuid() + ".srt";
-				//await _subtitleGeneratorService.GenerateSubtitles(audioTextTestPath, subtitlesName, token);
+				await _subtitleGeneratorService.GenerateSubtitles(audioTextTestPath, outputPath, token);
 
 				var subtitlesName = outputPath + "testaudio.srt";
 

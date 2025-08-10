@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Serilog;
 using System.Text;
+using VideoGenerator.Configurations;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using VideoGenerator.Workers;
@@ -25,13 +26,15 @@ public static partial class Extensions
             logger.ReadFrom.Configuration(hostContext.Configuration);
         })
         .AddSingleton<DetectLanguageClient>(sp =>
-		{
-			var config = sp.GetRequiredService<IConfiguration>();
-			return new(config["DetectLanguageApiKey"]);
-		})
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new(config["DetectLanguageApiKey"]);
+        })
         .AddScoped<ISubtitleGeneratorService, SubtitleGeneratorService>()
         .AddScoped<IVideoGenerationService, VideoGenerationService>()
         .AddScoped<IVideoProcessingService, VideoProcessingService>()
+        .AddScoped<IAssConvertService, AssConvertService>()
+        .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
 
 		// add hosted services
 		.AddHostedService<VideoMakerWorker>();
