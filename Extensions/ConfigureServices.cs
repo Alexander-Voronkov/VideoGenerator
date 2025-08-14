@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Serilog;
 using System.Text;
+using VideoGenerator.Configs;
 using VideoGenerator.Configurations;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
@@ -30,11 +31,15 @@ public static partial class Extensions
             var config = sp.GetRequiredService<IConfiguration>();
             return new(config["DetectLanguageApiKey"]);
         })
+        .AddScoped<IMinioBlobService, MinioBlobService>()
+        .AddScoped<IOpenAiService, OpenAIService>()
         .AddScoped<ISubtitleGeneratorService, SubtitleGeneratorService>()
         .AddScoped<IVideoGenerationService, VideoGenerationService>()
         .AddScoped<IVideoProcessingService, VideoProcessingService>()
         .AddScoped<IAssConvertService, AssConvertService>()
         .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
+        .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
+        .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
 
 		// add hosted services
 		.AddHostedService<VideoMakerWorker>();

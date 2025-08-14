@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="DetectLanguage" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Minio" Version="6.0.5" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
