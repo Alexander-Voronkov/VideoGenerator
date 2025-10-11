@@ -37,9 +37,11 @@ public static partial class Extensions
         .AddScoped<IVideoGenerationService, VideoGenerationService>()
         .AddScoped<IVideoProcessingService, VideoProcessingService>()
         .AddScoped<IAssConvertService, AssConvertService>()
+        .AddScoped<ITextToSpeechService, ElevenLabsTtsService>()
         .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
         .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
         .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
+        .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
 
 		// add hosted services
 		.AddHostedService<VideoMakerWorker>();

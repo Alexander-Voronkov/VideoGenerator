@@ -11,12 +11,10 @@ namespace VideoGenerator.Services.Implementations;
 public class VideoGenerationService : IVideoGenerationService
 {
     private readonly IVideoProcessingService _videoService;
-    private readonly IAssConvertService _assConvertService;
 
-    public VideoGenerationService(IVideoProcessingService videoService, IAssConvertService assConvertService)
+    public VideoGenerationService(IVideoProcessingService videoService)
     {
         _videoService = videoService;
-        _assConvertService = assConvertService;
     }
 
     public async Task CreateVideo(string audioPath, string subtitlePath, string backgroundVideoPath, string outputPath)
@@ -40,27 +38,17 @@ public class VideoGenerationService : IVideoGenerationService
         // Trim background clip to match audio length
         var trimmedBackground = Path.Combine(Path.GetTempPath(), $"trimmed_bg_{Guid.NewGuid()}.mp4");
         await _videoService.SplitAtAsync(backgroundVideoPath, trimmedBackground, randomStart, audioDuration);
-        var styledSubtitle = Path.Combine(Path.GetTempPath(), $"styled_{Guid.NewGuid()}.ass");
-        ConvertSrtToStyledAss(subtitlePath, styledSubtitle);
 
         var backgroundWithSound = Path.Combine(Path.GetTempPath(), $"bg_sound{Guid.NewGuid()}.mp4");
         await _videoService.AttachAudioAsync(audioPath, trimmedBackground, backgroundWithSound);
 
-        await _videoService.AddSubtitlesAsync(backgroundWithSound, outputPath, assPath: styledSubtitle);
+        await _videoService.AddSubtitlesAsync(backgroundWithSound, outputPath, assPath: subtitlePath);
 
         // Clean temp files
         try
         {
             File.Delete(trimmedBackground);
-            File.Delete(styledSubtitle);
         }
         catch { /* ignore */ }
-    }
-
-    private void ConvertSrtToStyledAss(string srtPath, string assPath)
-    {
-        var lines = File.ReadAllLines(srtPath);
-
-        File.WriteAllText(assPath, _assConvertService.ConvertFromCrt(lines));
     }
 }
