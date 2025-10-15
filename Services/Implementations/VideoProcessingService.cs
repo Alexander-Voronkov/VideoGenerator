@@ -258,41 +258,44 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFolderPath">Path to the output folder, where split video pieces to be saved.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task SplitEqualAsync(
-        int videoCount,
+    public async Task<string[]> SplitEqualAsync(
+        TimeSpan videoLength,
         string inputFilePath,
         string outputFolderPath,
         CancellationToken token = default)
     {
         var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
-        var tasks = new List<Task>();
         var totalDuration = 0;
         var start = TimeSpan.FromSeconds(0);
         var i = 0;
-        var videoLength = TimeSpan.FromSeconds(inputVideoInfo.Duration.TotalSeconds / videoCount);
+        int videoCount = (int)Math.Ceiling(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
+
+        var resultVideos = new List<string>();
 
         for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
         {
-            tasks.Add(Task.Factory.StartNew(async () =>
-            {
-                var conversion = await FFmpeg.Conversions.FromSnippet.Split(
-                inputFilePath,
-                string.Concat(
+            var path = string.Concat(
                     outputFolderPath,
                     "/",
                     Path.GetFileNameWithoutExtension(inputFilePath),
                     Guid.NewGuid().ToString(),
-                    Path.GetExtension(inputFilePath)),
+                    Path.GetExtension(inputFilePath));
+
+            var conversion = await FFmpeg.Conversions.FromSnippet.Split(
+                inputFilePath,
+                path,
                 start,
                 videoLength);
-                var result = await conversion.Start(token);
-                Interlocked.Add(ref totalDuration, (int)result.Duration.TotalSeconds);
-            }, token));
+
+            var result = await conversion.Start(token);
+
+            totalDuration += (int)result.Duration.TotalSeconds;
+            resultVideos.Add(path);
         }
 
-        await Task.WhenAll(tasks);
-
         _logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
+
+        return resultVideos.ToArray();
     }
 
     /// <summary>

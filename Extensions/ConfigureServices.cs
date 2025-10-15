@@ -44,6 +44,7 @@ public static partial class Extensions
         .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
 
 		// add hosted services
-		.AddHostedService<VideoMakerWorker>();
+		//.AddHostedService<VideoMakerWorker>()
+		.AddHostedService<VideoSplitterWorker>();
     }
 }

@@ -11,8 +11,8 @@ public interface IVideoProcessingService
         string outputFilePath,
         TimeSpan videoLength,
         CancellationToken token = default);
-    Task SplitEqualAsync(
-        int videoCount,
+    Task<string[]> SplitEqualAsync(
+        TimeSpan videoLength,
         string inputFilePath,
         string outputFilePath,
         CancellationToken token = default);
