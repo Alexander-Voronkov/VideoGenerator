@@ -121,21 +121,30 @@ public class VideoGenerationService : IVideoGenerationService
 
 		if (!videoExists)
 		{
+			await using var stream = File.OpenRead(tempMergedVideoPath3);
 			await _minioBlobService.UploadAsync(
-			bucketName,
-			objectName,
-			File.OpenRead(tempMergedVideoPath3),
-			"video/mp4",
-			token);
+				bucketName,
+				objectName,
+				stream,
+				"video/mp4",
+				token);
 		}
 		
+		TryDelete(tempMergedVideoPath);
+		TryDelete(tempMergedVideoPath1);
+		TryDelete(tempMergedVideoPath2);
+		TryDelete(tempMergedVideoPath3);
+    }
+
+	private void TryDelete(string path)
+	{
 		try
 		{
-			File.Delete(tempMergedVideoPath);
-			File.Delete(tempMergedVideoPath1);
-			File.Delete(tempMergedVideoPath2);
-			File.Delete(tempMergedVideoPath3);
-		} catch { }
-		
-    }
+			File.Delete(path);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError("Failed to clear temp file: {Message}", ex.Message);
+		}
+	}
 }

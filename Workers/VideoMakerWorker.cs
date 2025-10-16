@@ -138,7 +138,7 @@ public class VideoMakerWorker : BackgroundService
 						BlobPath = $"{GeneratedVideosBucket}/{objectName}.mp4",
 					});
 
-					pendingText.Status = GenerationStatus.Processed;
+					pendingText.Status = GenerationStatus.ReadyToProcess;
 
 					await dbContext.SaveChangesAsync(token);
 

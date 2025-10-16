@@ -34,8 +34,8 @@ public class AssConvertService : IAssConvertService
         return
             "[Script Info]\n" +
             "ScriptType: v4.00+\n" +
-            "PlayResX: 384\n" +
-            "PlayResY: 288\n" +
+            $"PlayResX: {_config.PlayResX}\n" +
+            $"PlayResY: {_config.PlayResY}\n" +
             "ScaledBorderAndShadow: yes\n\n" +
             "[V4+ Styles]\n" +
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, " +
@@ -82,105 +82,175 @@ public class AssConvertService : IAssConvertService
         if (chars == null || chars.Length == 0)
             return Array.Empty<string>();
 
-        var events = new List<string>();
-        var lineBuffer = new List<TimestampedTranscriptCharacter>();
-        int currentLength = 0;
+        // First, extract words with their timing information
+        var words = ExtractWordsFromCharacters(chars);
+        if (words.Count == 0) return Array.Empty<string>();
+
+        var result = new List<string>();
+        var currentLineWords = new List<(string word, double startTime, double endTime)>();
+        var currentLineLength = 0;
+        var previousLineContent = "";
+
+        for (int i = 0; i < words.Count; i++)
+        {
+            var word = words[i];
+            
+            // Calculate the length if we add this word (including space if not first word)
+            var wordLength = word.word.Length;
+            var spaceLength = currentLineWords.Count > 0 ? 1 : 0; // space before word
+            var totalLengthWithWord = currentLineLength + spaceLength + wordLength;
+            
+            // Check if adding this word would exceed the line limit
+            if (totalLengthWithWord > maxLineLength && currentLineWords.Count > 0)
+            {
+                // Process current line before adding new word
+                var lineContent = BuildLineContent(currentLineWords);
+                var isNewLineContent = lineContent.Trim() != previousLineContent.Trim();
+                
+                CreateSubtitleEventsForLine(result, currentLineWords, lineContent, isNewLineContent, words, i);
+                
+                previousLineContent = lineContent;
+                
+                // Start new line with current word
+                currentLineWords.Clear();
+                currentLineWords.Add(word);
+                currentLineLength = wordLength;
+            }
+            else
+            {
+                // Add word to current line
+                currentLineWords.Add(word);
+                currentLineLength = totalLengthWithWord;
+            }
+        }
+
+        // Handle the last line
+        if (currentLineWords.Count > 0)
+        {
+            var lineContent = BuildLineContent(currentLineWords);
+            var isNewLineContent = lineContent.Trim() != previousLineContent.Trim();
+            CreateSubtitleEventsForLine(result, currentLineWords, lineContent, isNewLineContent, words, words.Count);
+        }
+
+        return result.ToArray();
+    }
+
+    private string BuildLineContent(List<(string word, double startTime, double endTime)> words)
+    {
+        return string.Join(" ", words.Select(w => w.word));
+    }
+
+    private List<(string word, double startTime, double endTime)> ExtractWordsFromCharacters(TimestampedTranscriptCharacter[] chars)
+    {
+        var words = new List<(string word, double startTime, double endTime)>();
+        var currentWordChars = new List<TimestampedTranscriptCharacter>();
 
         for (int i = 0; i < chars.Length; i++)
         {
-            var ch = chars[i];
-            lineBuffer.Add(ch);
-            currentLength++;
-
-            bool isLast = i == chars.Length - 1;
-            bool isBreakPoint = ch.Character == " " && currentLength >= maxLineLength;
-
-            if (isBreakPoint || isLast)
+            var currentChar = chars[i];
+            
+            if (char.IsWhiteSpace(currentChar.Character[0]))
             {
-                ProcessTimestampedLine(lineBuffer, events);
-                lineBuffer.Clear();
-                currentLength = 0;
-            }
-        }
-
-        return events.ToArray();
-    }
-    
-    void ProcessTimestampedLine(List<TimestampedTranscriptCharacter> lineChars, List<string> output)
-    {
-        if (lineChars.Count == 0)
-            return;
-
-        // Build clean text from characters
-        string text = string.Concat(lineChars.Select(c => c.Character));
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
-        if (string.IsNullOrWhiteSpace(text))
-            return;
-
-        // Parse words with timing
-        var words = new List<(string Word, double Start, double End)>();
-        var currentWord = new StringBuilder();
-        double cStart = -1;
-        double cEnd = -1;
-
-        for (int i = 0; i < lineChars.Count; i++)
-        {
-            var c = lineChars[i];
-            var ch = c.Character[0];
-            bool isAlphaNum = char.IsLetterOrDigit(ch);
-
-            if (isAlphaNum)
-            {
-                if (currentWord.Length == 0)
-                    cStart = c.StartTime;
-
-                currentWord.Append(ch);
-                cEnd = c.EndTime;
-            }
-
-            bool wordEnded = (!isAlphaNum && currentWord.Length > 0)
-                             || (i == lineChars.Count - 1 && currentWord.Length > 0);
-
-            if (wordEnded)
-            {
-                var word = currentWord.ToString();
-                currentWord.Clear();
-
-                // Ignore non-alphanumeric "words" (punctuation-only)
-                if (word.Any(char.IsLetterOrDigit))
-                    words.Add((word, cStart, cEnd));
-            }
-        }
-
-        if (words.Count == 0)
-            return;
-
-        // Generate highlight events for each word in the line
-        for (int wIndex = 0; wIndex < words.Count; wIndex++)
-        {
-            var (word, start, end) = words[wIndex];
-            var splitWords = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            // Highlight *nth* occurrence of the current word
-            int occurrence = 0;
-            for (int i = 0; i < splitWords.Length; i++)
-            {
-                if (string.Equals(splitWords[i].TrimEnd('.', ',', '!', '?', ':', ';', '”', '“'),
-                                  word, StringComparison.OrdinalIgnoreCase))
+                // Complete current word if we have characters
+                if (currentWordChars.Count > 0)
                 {
-                    if (occurrence == 0)
-                    {
-                        splitWords[i] = $"{{\\rHighlight}}{splitWords[i]}{{\\r}}";
-                        occurrence++;
-                    }
+                    var word = string.Join("", currentWordChars.Select(c => c.Character));
+                    var startTime = currentWordChars[0].StartTime;
+                    var endTime = currentWordChars[^1].EndTime;
+                    words.Add((word, startTime, endTime));
+                    currentWordChars.Clear();
                 }
+                // Skip the whitespace character (don't add it as a word)
             }
+            else
+            {
+                currentWordChars.Add(currentChar);
+            }
+        }
 
-            string lineText = string.Join(" ", splitWords);
-            string dialogue = $"Dialogue: 0,{FormatTime(start)},{FormatTime(end)},Default,,0,0,0,,{_config.Animation} {lineText}";
-            output.Add(dialogue);
+        // Handle the last word
+        if (currentWordChars.Count > 0)
+        {
+            var word = string.Join("", currentWordChars.Select(c => c.Character));
+            var startTime = currentWordChars[0].StartTime;
+            var endTime = currentWordChars[^1].EndTime;
+            words.Add((word, startTime, endTime));
+        }
+
+        return words;
+    }
+
+    private void CreateSubtitleEventsForLine(List<string> result, 
+                                           List<(string word, double startTime, double endTime)> words, 
+                                           string lineText, 
+                                           bool isNewLine,
+                                           List<(string word, double startTime, double endTime)> allWords,
+                                           int nextWordIndex)
+    {
+        if (words.Count == 0) return;
+
+        for (int i = 0; i < words.Count; i++)
+        {
+            var word = words[i];
+            
+            // Create text with current word highlighted
+            var highlightedText = HighlightSpecificWord(lineText, word.word, words);
+            
+            // Calculate end time - should be start of next word or end of current word
+            double endTime;
+            if (i < words.Count - 1)
+            {
+                // End when next word in same line starts
+                endTime = words[i + 1].startTime;
+            }
+            else if (nextWordIndex < allWords.Count)
+            {
+                // Last word in line - end when next word in next line starts
+                endTime = allWords[nextWordIndex].startTime;
+            }
+            else
+            {
+                // Very last word - use its natural end time
+                endTime = word.endTime;
+            }
+            
+            // Create dialogue event for this word's duration
+            var start = FormatTime(word.startTime);
+            var end = FormatTime(endTime);
+            
+            // Only apply animation to the first word of a truly new line (new content)
+            // and only if it's the first word being processed in that line
+            var shouldAnimate = isNewLine && i == 0;
+            var wordAnimation = shouldAnimate ? _config.Animation : "";
+            
+            result.Add($"Dialogue: 0,{start},{end},Default,,0,0,0,,{wordAnimation}{highlightedText}");
         }
     }
+
+    private string HighlightSpecificWord(string lineText, string currentWord, 
+                                        List<(string word, double startTime, double endTime)> allWords)
+    {
+        var words = lineText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var highlightedWords = new List<string>();
+        
+        // Create a set of currently speaking words for faster lookup
+        var currentWords = new HashSet<string> { currentWord.Trim() };
+        
+        foreach (var word in words)
+        {
+            if (currentWords.Contains(word.Trim()))
+            {
+                highlightedWords.Add($"{{\\rHighlight}}{word}{{\\r}}");
+            }
+            else
+            {
+                highlightedWords.Add(word);
+            }
+        }
+        
+        return string.Join(" ", highlightedWords);
+    }
+
     
     private static string NormalizeTime(string input)
     {
@@ -192,7 +262,9 @@ public class AssConvertService : IAssConvertService
     private static string FormatTime(double seconds)
     {
         var ts = TimeSpan.FromSeconds(seconds);
-        return $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}.{ts.Milliseconds / 10:00}";
+        // Ensure proper centisecond precision (ASS format uses centiseconds, not milliseconds)
+        var centiseconds = (int)Math.Round((seconds - Math.Floor(seconds)) * 100);
+        return $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}.{centiseconds:00}";
     }
 
     private static string ApplyHighlight(string text)
