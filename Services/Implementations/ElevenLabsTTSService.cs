@@ -12,9 +12,11 @@ public class ElevenLabsTtsService: ITextToSpeechService
 {
     private readonly ElevenLabsClient _elevenLabsClient;
     private readonly ElevenLabsConfig _elevenLabsConfig;
-    private readonly ILogger<ElevenLabsTtsService> _logger;
+    private readonly ILogger _logger;
 
-    public ElevenLabsTtsService(IOptions<ElevenLabsConfig> elevenLabsConfig,  ILogger<ElevenLabsTtsService> logger)
+    public ElevenLabsTtsService(
+        IOptions<ElevenLabsConfig> elevenLabsConfig,  
+        ILogger<ElevenLabsTtsService> logger)
     {
         _elevenLabsConfig = elevenLabsConfig.Value;
         _elevenLabsClient = new ElevenLabsClient(elevenLabsConfig.Value.ApiKey);

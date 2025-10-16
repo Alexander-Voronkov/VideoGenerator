@@ -5,39 +5,39 @@ namespace VideoGenerator.Services.Interfaces;
 
 public interface IVideoProcessingService
 {
-    Task SplitAsync(
+    Task<TimeSpan> SplitAsync(
         int videoCount,
         string inputFilePath,
         string outputFilePath,
         TimeSpan videoLength,
         CancellationToken token = default);
-    Task<string[]> SplitEqualAsync(
+    Task<(string[] Videos, TimeSpan Duration)> SplitEqualAsync(
         TimeSpan videoLength,
         string inputFilePath,
         string outputFilePath,
         CancellationToken token = default);
-    Task SplitAtAsync(
+    Task<TimeSpan> SplitAtAsync(
         string inputFilePath,
         string outputFilePath,
         TimeSpan startPoint,
         TimeSpan videoLength,
         CancellationToken token = default);
-    Task AttachAudioAsync(
+    Task<TimeSpan> AttachAudioAsync(
         string audioPath,
         string inputFilePath,
         string outputFilePath,
         CancellationToken token = default);
-    Task DetachAudioAsync(
+    Task<TimeSpan> DetachAudioAsync(
         string inputFilePath,
         string outputAudioPath,
         CancellationToken token = default);
-    Task PlaceWatermarkAsync(
+    Task<TimeSpan> PlaceWatermarkAsync(
         string inputFilePath,
         string watermarkPath,
         string outputFilePath,
         Position position = Position.Bottom,
         CancellationToken token = default);
-    Task WriteTextAsync(string text,
+    Task<TimeSpan> WriteTextAsync(string text,
         string inputFilePath,
         string outputFilePath,
         string fontName = "Arial",
@@ -49,16 +49,16 @@ public interface IVideoProcessingService
         TimeSpan? startTime = null,
         TimeSpan? endTime = null,
         CancellationToken token = default);
-    Task MergeVideosAsync(
+    Task<TimeSpan> MergeVideosAsync(
         string[] inputFilePaths,
         string outputFilePath,
         CancellationToken token = default);
-    Task GetSnapshot(
+    Task<TimeSpan> GetSnapshot(
         string inputFilePath,
         string ouputFilePath,
         TimeSpan timing,
         CancellationToken token = default);
-    Task AddSubtitlesAsync(
+    Task<TimeSpan> AddSubtitlesAsync(
         string inputVideoPath,
         string outputVideoPath,
         string subtitlesPath = null,

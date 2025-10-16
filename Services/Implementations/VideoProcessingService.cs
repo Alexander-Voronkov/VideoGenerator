@@ -33,7 +33,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFilePath">Result video file path.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task AttachAudioAsync(
+    public async Task<TimeSpan> AttachAudioAsync(
         string audioPath,
         string inputFilePath,
         string outputFilePath,
@@ -67,6 +67,7 @@ public class VideoProcessingService : IVideoProcessingService
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Audio attaching took {result.Duration.TotalSeconds} seconds.");
+        return result.Duration;
     }
 
     /// <summary>
@@ -76,7 +77,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputAudioPath">Path to the output file.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task DetachAudioAsync(
+    public async Task<TimeSpan> DetachAudioAsync(
         string inputFilePath,
         string outputAudioPath,
         CancellationToken token = default)
@@ -92,6 +93,7 @@ public class VideoProcessingService : IVideoProcessingService
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Audio detaching took {result.Duration.TotalSeconds} seconds.");
+        return result.Duration;
     }
 
     /// <summary>
@@ -102,7 +104,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="timing">Timing of snapshot.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task GetSnapshot(
+    public async Task<TimeSpan> GetSnapshot(
         string inputFilePath,
         string outputFilePath,
         TimeSpan timing,
@@ -125,8 +127,9 @@ public class VideoProcessingService : IVideoProcessingService
             outputFilePath,
             timing);
         var result = await conversion.Start(token);
+		_logger.LogInformation($"Snapshot taking took {result.Duration.TotalSeconds} seconds.");
 
-        _logger.LogInformation($"Snapshot taking took {result.Duration.TotalSeconds} seconds.");
+		return result.Duration;
     }
 
     /// <summary>
@@ -136,7 +139,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFilePath">Path to the ouputfile.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task MergeVideosAsync(
+    public async Task<TimeSpan> MergeVideosAsync(
         string[] inputFilePaths,
         string outputFilePath,
         CancellationToken token = default)
@@ -148,8 +151,9 @@ public class VideoProcessingService : IVideoProcessingService
 
         var conversion = await FFmpeg.Conversions.FromSnippet.Concatenate(outputFilePath, inputFilePaths);
         var result = await conversion.Start(token);
+		_logger.LogInformation($"Merging of videos took {result.Duration.TotalSeconds} seconds.");
 
-        _logger.LogInformation($"Merging of videos took {result.Duration.TotalSeconds} seconds.");
+		return result.Duration;
     }
 
     /// <summary>
@@ -160,7 +164,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFilePath">Path to the ouput video with the watermark.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task PlaceWatermarkAsync(
+    public async Task<TimeSpan> PlaceWatermarkAsync(
         string inputFilePath,
         string watermarkPath,
         string outputFilePath,
@@ -169,8 +173,9 @@ public class VideoProcessingService : IVideoProcessingService
     {
         var conversion = await FFmpeg.Conversions.FromSnippet.SetWatermark(inputFilePath, outputFilePath, watermarkPath, position);
         var result = await conversion.Start(token);
+		_logger.LogInformation($"Placing watermark took {result.Duration.TotalSeconds} seconds.");
 
-        _logger.LogInformation($"Placing watermark took {result.Duration.TotalSeconds} seconds.");
+		return result.Duration;
     }
 
     /// <summary>
@@ -182,7 +187,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFolderPath">Path to the output folder, where split video pieces to be saved.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task SplitAsync(
+    public async Task<TimeSpan> SplitAsync(
         int videoCount,
         string inputFilePath,
         string outputFolderPath,
@@ -215,8 +220,9 @@ public class VideoProcessingService : IVideoProcessingService
         }
 
         await Task.WhenAll(tasks);
+		_logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
 
-        _logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
+		return TimeSpan.FromSeconds(totalDuration);
     }
 
     /// <summary>
@@ -227,7 +233,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFilePath">Path to the output file, where the split video to be saved.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task SplitAtAsync(
+    public async Task<TimeSpan> SplitAtAsync(
         string inputFilePath,
         string outputFilePath,
         TimeSpan startPoint,
@@ -246,8 +252,9 @@ public class VideoProcessingService : IVideoProcessingService
             .AddParameter("-r 29.97");
         conversion.OnProgress += Conversion_OnProgress;
         var result = await conversion.Start(token);
+		_logger.LogInformation($"Splitting of the video took {result.Duration.TotalSeconds} seconds.");
 
-        _logger.LogInformation($"Splitting of the video took {result.Duration.TotalSeconds} seconds.");
+		return result.Duration;
     }
 
     /// <summary>
@@ -258,7 +265,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFolderPath">Path to the output folder, where split video pieces to be saved.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task<string[]> SplitEqualAsync(
+    public async Task<(string[] Videos, TimeSpan Duration)> SplitEqualAsync(
         TimeSpan videoLength,
         string inputFilePath,
         string outputFolderPath,
@@ -278,7 +285,7 @@ public class VideoProcessingService : IVideoProcessingService
                     outputFolderPath,
                     "/",
                     Path.GetFileNameWithoutExtension(inputFilePath),
-                    Guid.NewGuid().ToString(),
+                    i,
                     Path.GetExtension(inputFilePath));
 
             var conversion = await FFmpeg.Conversions.FromSnippet.Split(
@@ -291,11 +298,10 @@ public class VideoProcessingService : IVideoProcessingService
 
             totalDuration += (int)result.Duration.TotalSeconds;
             resultVideos.Add(path);
-        }
+		}
+		_logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
 
-        _logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
-
-        return resultVideos.ToArray();
+		return (resultVideos.ToArray(), TimeSpan.FromSeconds(totalDuration));
     }
 
     /// <summary>
@@ -306,7 +312,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputFilePath">Output video path with the text.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
-    public async Task WriteTextAsync(
+    public async Task<TimeSpan> WriteTextAsync(
         string text,
         string inputFilePath,
         string outputFilePath,
@@ -344,8 +350,9 @@ public class VideoProcessingService : IVideoProcessingService
             .AddParameter($@"-vf ""drawtext=text='{text}':font='{font}':fontsize={fontSize}:{position}:enable='between(t,{startTime?.ToFFmpeg()},{endTime?.ToFFmpeg()})'""")
             .SetOutput(outputFilePath)
             .Start(token);
+		_logger.LogInformation($"Writing text on video took {result.Duration.TotalSeconds} seconds.");
 
-        _logger.LogInformation($"Writing text on video took {result.Duration.TotalSeconds} seconds.");
+		return result.Duration;
     }
 
     /// <summary>
@@ -355,7 +362,7 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="outputVideoPath">Path to the output video with subtitles</param>
     /// <param name="subtitlesPath">Path to the subtitles in .srt format</param>
     /// <returns></returns>
-    public async Task AddSubtitlesAsync(
+    public async Task<TimeSpan> AddSubtitlesAsync(
         string inputVideoPath,
         string outputVideoPath,
         string subtitlesPath = null,
@@ -388,8 +395,9 @@ public class VideoProcessingService : IVideoProcessingService
         conversion.OnProgress += Conversion_OnProgress;
 
         var result = await conversion.Start(token);
+		_logger.LogInformation($"Adding subtitles took {result.Duration.TotalSeconds}");
 
-        _logger.LogInformation($"Adding subtitles took {result.Duration.TotalSeconds}");
+		return result.Duration;
     }
 
     private void Conversion_OnProgress(object sender, Xabe.FFmpeg.Events.ConversionProgressEventArgs args)

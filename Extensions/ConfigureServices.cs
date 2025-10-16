@@ -1,12 +1,13 @@
 ﻿using DetectLanguage;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Serilog;
 using System.Text;
 using VideoGenerator.Configs;
 using VideoGenerator.Configurations;
+using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
 using VideoGenerator.Workers;
@@ -31,6 +32,10 @@ public static partial class Extensions
             var config = sp.GetRequiredService<IConfiguration>();
             return new(config["DetectLanguageApiKey"]);
         })
+        .AddDbContextFactory<ApplicationDbContext>(x =>
+        {
+            x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
+        })
         .AddScoped<IMinioBlobService, MinioBlobService>()
         .AddScoped<IOpenAiService, OpenAIService>()
         .AddScoped<ISubtitleGeneratorService, SubtitleGeneratorService>()
@@ -43,8 +48,9 @@ public static partial class Extensions
         .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
         .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
 
-		// add hosted services
-		//.AddHostedService<VideoMakerWorker>()
-		.AddHostedService<VideoSplitterWorker>();
+        // add hosted services
+
+		//.AddHostedService<VideoSplitterWorker>()
+        .AddHostedService<VideoMakerWorker>();
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
+using System.Text.Json;
 using VideoGenerator.Configs;
 using VideoGenerator.Services.Interfaces;
 
@@ -84,18 +85,21 @@ public class MinioBlobService : IMinioBlobService
             .WithObject(objectName), token);
     }
 
-    public List<string> List(string bucketName, CancellationToken token = default)
+    public async Task<List<string>> ListAsync(string bucketName, CancellationToken token = default)
     {
         var objectNames = new List<string>();
 
-        var items = _minio.ListObjectsEnumAsync(
+        await foreach(var item in _minio.ListObjectsEnumAsync(
             new ListObjectsArgs()
                 .WithBucket(bucketName)
                 .WithRecursive(true),
-            token);
+            token))
+        {
+            objectNames.Add(item.Key);
+		}
 
-        return items.ToBlockingEnumerable(token).Select(item => item.Key).ToList();
-    }
+        return objectNames;
+	}
 
     public async Task<string> GetPresignedUrlAsync(string bucketName, string objectName, int expiryInSeconds = 3600, CancellationToken token = default)
     {
@@ -107,4 +111,41 @@ public class MinioBlobService : IMinioBlobService
         string url = await _minio.PresignedGetObjectAsync(args);
         return url;
     }
+
+	public async Task MakeBucketPublicAsync(string bucketName, CancellationToken token = default)
+	{
+		bool exists = await _minio.BucketExistsAsync(new BucketExistsArgs().WithBucket(bucketName), token);
+		if (!exists)
+		{
+			await _minio.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucketName), token);
+		}
+
+		var policy = new
+		{
+			Version = "2012-10-17",
+			Statement = new[]
+			{
+			new
+			{
+				Effect = "Allow",
+				Principal = new { AWS = new[] { "*" } },
+				Action = new[] { "s3:GetBucketLocation", "s3:ListBucket" },
+				Resource = new[] { $"arn:aws:s3:::{bucketName}" }
+			},
+			new
+			{
+				Effect = "Allow",
+				Principal = new { AWS = new[] { "*" } },
+				Action = new[] { "s3:GetObject" },
+				Resource = new[] { $"arn:aws:s3:::{bucketName}/*" }
+			}
+		}
+		};
+
+		string policyJson = JsonSerializer.Serialize(policy);
+
+		await _minio.SetPolicyAsync(new SetPolicyArgs()
+			.WithBucket(bucketName)
+			.WithPolicy(policyJson), token);
+	}
 }

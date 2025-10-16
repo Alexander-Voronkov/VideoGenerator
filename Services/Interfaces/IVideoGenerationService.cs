@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace VideoGenerator.Services.Interfaces;
 
-namespace VideoGenerator.Services.Interfaces;
 public interface IVideoGenerationService
 {
-    Task CreateVideo(string audioPath, string subtitlePath, string backgroundVideoPath, string outputPath);
+    Task CreateVideo(
+        string audioPath, 
+        string subtitlePath, 
+        string bucketName,
+        string objectName,
+        CancellationToken token = default);
 }

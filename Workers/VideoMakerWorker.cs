@@ -1,7 +1,14 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using ElevenLabs;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Text;
+using System.Text.Json;
+using VideoGenerator.Configs;
+using VideoGenerator.Entities;
+using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
-using VideoGenerator.Helpers;
 
 namespace VideoGenerator.Workers;
 
@@ -12,64 +19,146 @@ public class VideoMakerWorker : BackgroundService
 	private readonly ISubtitleGeneratorService _subtitleGeneratorService;
 	private readonly ITextToSpeechService _textToSpeechService;
 	private readonly IAssConvertService _assConvertService;
+	private readonly IMinioBlobService _minioBlobService;
+	private readonly MinioBlobConfig _minioBlobConfig;
+	private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 
-	private string audioTextTestPath = "C:\\Users\\Zoranais\\source\\repos\\VideoGaynerator\\Output\\testaudio.mp3";
-	private string brainrotVideoPath = "C:\\VideoGenerator\\Input\\brainrot.mp4";
-    private string outputPath = "C:\\VideoGenerator\\Output\\";
+	private const int JobIntervalInMinutes = 600;
+
+	private const string TtsSubtitlesBucket = "tts-subtitles";
+	private const string AssSubtitlesBucket = "ass-subtitles";
+	private const string GeneratedVideosBucket = "generated-videos";
 
     public VideoMakerWorker(
 		ILogger<VideoMakerWorker> logger, 
 		IVideoGenerationService videoService, 
 		ISubtitleGeneratorService subtitleGeneratorService,
 		ITextToSpeechService textToSpeechService,
-		IAssConvertService assConvertService)
+		IAssConvertService assConvertService,
+		IMinioBlobService minioBlobService,
+		IOptions<MinioBlobConfig> minioBlobConfig,
+		IDbContextFactory<ApplicationDbContext> dbContextFactory)
     {
         _logger = logger;
         _videoService = videoService;
         _subtitleGeneratorService = subtitleGeneratorService;
         _textToSpeechService = textToSpeechService;
         _assConvertService = assConvertService;
+		_minioBlobService = minioBlobService;
+		_minioBlobConfig = minioBlobConfig.Value;
+		_dbContextFactory = dbContextFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
-		try
-		{
-			_logger.LogInformation("VideoMakerWorker started dependecies installation");
-			await InstallDependenciesHelper.InstallAllDependencies(token);
-			_logger.LogInformation("VideoMakerWorker finished dependecies installation");
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(exception: ex, message: ex.Message);
-		}
+        await Task.Delay(1, token);
 
-        await Task.Delay(1);
-        while (!token.IsCancellationRequested)
+		await _minioBlobService.MakeBucketPublicAsync(AssSubtitlesBucket, token);
+		await _minioBlobService.MakeBucketPublicAsync(TtsSubtitlesBucket, token);
+		await _minioBlobService.MakeBucketPublicAsync(GeneratedVideosBucket, token);
+
+		while (!token.IsCancellationRequested)
 		{
 			try
 			{
-				_logger.LogInformation("VideoMakerWorker started successfully");
+				const string language = "en";
 
-				var testText = "My name is Irina Dzerjinska, and I am literally Dubai chocolate.\n\nOdin crafted me from divine cacao during a sandstorm over the Burj Khalifa, declaring, “Let sweetness conquer vanity.” Thor laughed, struck his hammer, and the lightning tempered my shell to perfection.\n\nNow I walk among mortals — part goddess, part dessert — melting hearts faster than heat ever could. Some call me a miracle, others a myth.\n\nBut when thunder rolls across the Gulf, I know the gods still crave a taste.";
-				var audioOutputPath = outputPath + "tts" + Guid.NewGuid() + ".mp3";
-				var audioResult = await _textToSpeechService.CreateTextToSpeech(testText, "en");
-				await File.WriteAllBytesAsync(audioOutputPath, audioResult.Audio, token);
+				var dbContext = _dbContextFactory.CreateDbContext();
 
-				var subtitles = _assConvertService.ConvertFromTimestampedTranscript(audioResult.Timestamps, 9);
-				
-				var subtitlesPath = outputPath + "subtitles" + Guid.NewGuid() + ".ass";
-				await File.WriteAllTextAsync(subtitlesPath, subtitles, token);
-				
-				var videoName = outputPath + "video" + Guid.NewGuid() + ".mp4";
-				await _videoService.CreateVideo(audioOutputPath, subtitlesPath, brainrotVideoPath, videoName);
-				_logger.LogInformation("VideoMakerWorker generated a stupid brainrot shit");
-            }
+				var pendingText = await dbContext.Set<GenerationQueueItem>()
+					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+					.FirstOrDefaultAsync(token);
+
+				pendingText.Status = GenerationStatus.Processing;
+				await dbContext.SaveChangesAsync(token);
+
+				try
+				{
+					var objectName = pendingText.Id + language;
+					var ttsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
+					var assBlobPath = $"{AssSubtitlesBucket}/{objectName}";
+
+					var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
+					var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
+
+					var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
+						.FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
+
+					dbContext.Dispose();
+
+					if (!ttsExists)
+					{
+						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, language);
+						await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, new MemoryStream(audioResult.Audio), "audio/mpeg", token);
+
+						if (generatedSubtitle is not null)
+						{
+							generatedSubtitle.TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
+						}
+						else
+						{
+							generatedSubtitle = new()
+							{
+								TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}",
+								Timestamps = JsonSerializer.Serialize(audioResult.Timestamps)
+							};
+
+							dbContext = _dbContextFactory.CreateDbContext();
+
+							dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
+							await dbContext.SaveChangesAsync(token);
+							dbContext.Dispose();
+						}
+					}
+
+					if (!assExists)
+					{
+						var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9);
+						await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, new MemoryStream(Encoding.UTF8.GetBytes(subtitles)), "text/ssa", token);
+						generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
+					}
+
+					dbContext = _dbContextFactory.CreateDbContext();
+					await dbContext.SaveChangesAsync(token);
+
+					dbContext.Dispose();
+
+					var audioPath = $"http://{_minioBlobConfig.Host}/{ttsBlobPath}";
+					var subtitlesPath = $"http://{_minioBlobConfig.Host}/{assBlobPath}";
+
+					await _videoService.CreateVideo(audioPath, subtitlesPath, GeneratedVideosBucket, objectName + ".mp4", token);
+					_logger.LogInformation("VideoMakerWorker generated a stupid brainrot shit");
+
+					dbContext = _dbContextFactory.CreateDbContext();
+
+					dbContext.Attach(pendingText);
+					dbContext.Set<GeneratedVideo>().Add(new()
+					{
+						GenerationQueueId = pendingText.Id,
+						BlobPath = $"{GeneratedVideosBucket}/{objectName}.mp4",
+					});
+
+					pendingText.Status = GenerationStatus.Processed;
+
+					await dbContext.SaveChangesAsync(token);
+
+					dbContext.Dispose();
+				}
+				catch
+				{
+					dbContext = _dbContextFactory.CreateDbContext();
+
+					dbContext.Attach(pendingText);
+					pendingText.Status = GenerationStatus.Processing;
+
+					await dbContext.SaveChangesAsync(token);
+				}
+			}
 			catch (Exception ex)
 			{
-				_logger.LogError(exception: ex, message: ex.Message);
+				_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
 			}
-			await Task.Delay(1000000);
+			await Task.Delay(TimeSpan.FromMinutes(JobIntervalInMinutes), token);
 		}
     }
 }

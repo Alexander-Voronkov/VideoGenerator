@@ -1,8 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
+using VideoGenerator.Configs;
+using VideoGenerator.Entities;
+using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 using Xabe.FFmpeg;
 
@@ -11,44 +13,129 @@ namespace VideoGenerator.Services.Implementations;
 public class VideoGenerationService : IVideoGenerationService
 {
     private readonly IVideoProcessingService _videoService;
+    private readonly IMinioBlobService _minioBlobService;
+	private readonly MinioBlobConfig _minioBlobConfig;
+    private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
+	private readonly ILogger _logger;
 
-    public VideoGenerationService(IVideoProcessingService videoService)
+    public VideoGenerationService(
+        IVideoProcessingService videoService,
+        IMinioBlobService minioBlobService,
+		IOptions<MinioBlobConfig> minioBlobConfig,
+        IDbContextFactory<ApplicationDbContext> dbContextFactory,
+		ILogger<VideoGenerationService> logger)
     {
         _videoService = videoService;
-    }
+        _minioBlobService = minioBlobService;
+        _minioBlobConfig = minioBlobConfig.Value;
+		_dbContextFactory = dbContextFactory;
+		_logger = logger;
+	}
 
-    public async Task CreateVideo(string audioPath, string subtitlePath, string backgroundVideoPath, string outputPath)
-    {
-        // Ensure absolute paths
-        audioPath = Path.GetFullPath(audioPath);
-        subtitlePath = Path.GetFullPath(subtitlePath);
-        backgroundVideoPath = Path.GetFullPath(backgroundVideoPath);
-        outputPath = Path.GetFullPath(outputPath);
+	public async Task CreateVideo(
+        string audioPath, 
+        string subtitlePath, 
+        string bucketName,
+        string objectName, 
+        CancellationToken token = default)
+	{
+		// Get audio duration
+		var mediaInfo = await FFmpeg.GetMediaInfo(audioPath);
 
-        // Get audio duration
-        var mediaInfo = await FFmpeg.GetMediaInfo(audioPath);
-        var audioDuration = mediaInfo.Duration;
+		var selectedVideos = new List<SplitHistory>();
 
-        // Pick a random start point in background video
-        var bgInfo = await FFmpeg.GetMediaInfo(backgroundVideoPath);
-        var bgDuration = bgInfo.Duration;
-        var maxStart = bgDuration - audioDuration;
-        var randomStart = TimeSpan.FromSeconds(new Random().NextDouble() * maxStart.TotalSeconds);
+		var dbContext = _dbContextFactory.CreateDbContext();
 
-        // Trim background clip to match audio length
-        var trimmedBackground = Path.Combine(Path.GetTempPath(), $"trimmed_bg_{Guid.NewGuid()}.mp4");
-        await _videoService.SplitAtAsync(backgroundVideoPath, trimmedBackground, randomStart, audioDuration);
+		for (double i = 0; i < mediaInfo.Duration.TotalMinutes;)
+		{
+			var video = await dbContext.Set<SplitHistory>()
+				.OrderByDescending(x => x.LastTookPartAt)
+				.OrderByDescending(x => x.Duration)
+				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i 
+                    || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i), token);
 
-        var backgroundWithSound = Path.Combine(Path.GetTempPath(), $"bg_sound{Guid.NewGuid()}.mp4");
-        await _videoService.AttachAudioAsync(audioPath, trimmedBackground, backgroundWithSound);
+			await dbContext.Set<SplitHistory>()
+				.Where(x => x.Id == video.Id)
+				.ExecuteUpdateAsync(x => x.SetProperty(q => q.LastTookPartAt, DateTime.UtcNow), token);
 
-        await _videoService.AddSubtitlesAsync(backgroundWithSound, outputPath, assPath: subtitlePath);
+			if (video != null)
+			{
+				selectedVideos.Add(video);
+                i += video.Duration.TotalMinutes;
+			}
+		}
 
-        // Clean temp files
-        try
-        {
-            File.Delete(trimmedBackground);
-        }
-        catch { /* ignore */ }
+		dbContext.Dispose();
+
+		var tempMergedVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}");
+        var tempMergedVideoPath1 = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}");
+        var tempMergedVideoPath2 = Path.Combine(Path.GetTempPath(), $"merged_with_sound_{objectName}");
+        var tempMergedVideoPath3 = Path.Combine(Path.GetTempPath(), $"merged_with_subtitles_{objectName}");
+
+		if (!File.Exists(tempMergedVideoPath))
+		{
+			_logger.LogInformation("Started merging");
+			if (selectedVideos.Count == 1)
+			{
+				tempMergedVideoPath = $"http://{_minioBlobConfig.Host}/{selectedVideos.Single().BlobPath}";
+			}
+			else
+			{
+				await _videoService.MergeVideosAsync(
+					selectedVideos.Select(x => $"http://{_minioBlobConfig.Host}/{x.BlobPath}").ToArray(),
+					tempMergedVideoPath,
+					token);
+			}
+		}
+
+        var tempMergedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempMergedVideoPath);
+
+		if (!File.Exists(tempMergedVideoPath1))
+		{
+			_logger.LogInformation("Started splitting");
+			await _videoService.SplitAtAsync(tempMergedVideoPath, tempMergedVideoPath1, TimeSpan.Zero, mediaInfo.Duration, token);
+		}
+
+		if (!File.Exists(tempMergedVideoPath2))
+		{
+			_logger.LogInformation("Started attaching audio");
+			await _videoService.AttachAudioAsync(audioPath, tempMergedVideoPath1, tempMergedVideoPath2, token);
+		}
+
+		if (!File.Exists(tempMergedVideoPath3))
+		{
+			_logger.LogInformation("Started adding subtitles");
+			using var http = new HttpClient();
+			var data = await http.GetByteArrayAsync(subtitlePath);
+			var tempSubtitlePath = Path.Combine(Path.GetTempPath(), $"subtitles_{Path.GetFileNameWithoutExtension(objectName)}.ass");
+			await File.WriteAllBytesAsync(tempSubtitlePath, data, token);
+
+			await _videoService.AddSubtitlesAsync(tempMergedVideoPath2, tempMergedVideoPath3, assPath: tempSubtitlePath, token: token);
+
+			File.Delete(tempSubtitlePath);
+		}
+
+		_logger.LogInformation("Started uploading video");
+
+		var videoExists = await _minioBlobService.ExistsAsync(bucketName, objectName, token);
+
+		if (!videoExists)
+		{
+			await _minioBlobService.UploadAsync(
+			bucketName,
+			objectName,
+			File.OpenRead(tempMergedVideoPath3),
+			"video/mp4",
+			token);
+		}
+		
+		try
+		{
+			File.Delete(tempMergedVideoPath);
+			File.Delete(tempMergedVideoPath1);
+			File.Delete(tempMergedVideoPath2);
+			File.Delete(tempMergedVideoPath3);
+		} catch { }
+		
     }
 }
