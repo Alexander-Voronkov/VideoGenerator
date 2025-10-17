@@ -273,11 +273,20 @@ public class VideoProcessingService : IVideoProcessingService
     {
         var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
         var totalDuration = 0;
-        var start = TimeSpan.FromSeconds(0);
-        var i = 0;
+
         int videoCount = (int)Math.Ceiling(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
 
-        var resultVideos = new List<string>();
+		var existingFilesCount = Enumerable.Range(0, videoCount).Select(x => File.Exists(string.Concat(
+			outputFolderPath,
+			"/",
+			Path.GetFileNameWithoutExtension(inputFilePath),
+			x,
+			Path.GetExtension(inputFilePath)))).Count(x => x);
+
+		var i = existingFilesCount;
+		var start = videoLength * i;
+
+		var resultVideos = new List<string>();
         
         _logger.LogInformation("Splitting of the video {inputFilePath} started.", inputFilePath);
         for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
