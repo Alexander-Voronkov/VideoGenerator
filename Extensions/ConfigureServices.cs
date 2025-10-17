@@ -21,36 +21,36 @@ public static partial class Extensions
         //configuration
         services
 
-        // logging
-        .AddSerilog(logger =>
-        {
-            Console.OutputEncoding = Encoding.UTF8;
-            logger.ReadFrom.Configuration(hostContext.Configuration);
-        })
-        .AddSingleton<DetectLanguageClient>(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new(config["DetectLanguageApiKey"]);
-        })
-        .AddDbContextFactory<ApplicationDbContext>(x =>
-        {
-            x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
-        })
-        .AddScoped<IMinioBlobService, MinioBlobService>()
-        .AddScoped<IOpenAiService, OpenAIService>()
-        .AddScoped<ISubtitleGeneratorService, SubtitleGeneratorService>()
-        .AddScoped<IVideoGenerationService, VideoGenerationService>()
-        .AddScoped<IVideoProcessingService, VideoProcessingService>()
-        .AddScoped<IAssConvertService, AssConvertService>()
-        .AddScoped<ITextToSpeechService, ElevenLabsTtsService>()
-        .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
-        .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
-        .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
-        .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
+            // logging
+            .AddSerilog(logger =>
+            {
+                Console.OutputEncoding = Encoding.UTF8;
+                logger.ReadFrom.Configuration(hostContext.Configuration);
+            })
+            .AddSingleton<DetectLanguageClient>(sp =>
+            {
+                var config = sp.GetRequiredService<IConfiguration>();
+                return new(config["DetectLanguageApiKey"]);
+            })
+            .AddDbContextFactory<ApplicationDbContext>(x =>
+            {
+                x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
+            })
+            .AddScoped<IMinioBlobService, MinioBlobService>()
+            .AddScoped<IOpenAiService, OpenAIService>()
+            .AddScoped<ISubtitleGeneratorService, SubtitleGeneratorService>()
+            .AddScoped<IVideoGenerationService, VideoGenerationService>()
+            .AddScoped<IVideoProcessingService, VideoProcessingService>()
+            .AddScoped<IAssConvertService, AssConvertService>()
+            .AddScoped<ITextToSpeechService, ElevenLabsTtsService>()
+            .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
+            .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
+            .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
+            .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
 
-        // add hosted services
+            // add hosted services
 
-		//.AddHostedService<VideoSplitterWorker>()
-        .AddHostedService<VideoMakerWorker>();
+            .AddHostedService<VideoSplitterWorker>();
+        //.AddHostedService<VideoMakerWorker>();
     }
 }

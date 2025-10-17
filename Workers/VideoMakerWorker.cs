@@ -88,7 +88,7 @@ public class VideoMakerWorker : BackgroundService
 
 					if (!ttsExists)
 					{
-						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, language);
+						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, pendingText.SexType, language);
 						await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, new MemoryStream(audioResult.Audio), "audio/mpeg", token);
 
 						if (generatedSubtitle is not null)
@@ -138,7 +138,7 @@ public class VideoMakerWorker : BackgroundService
 						BlobPath = $"{GeneratedVideosBucket}/{objectName}.mp4",
 					});
 
-					pendingText.Status = GenerationStatus.ReadyToProcess;
+					pendingText.Status = GenerationStatus.Processed;
 
 					await dbContext.SaveChangesAsync(token);
 

@@ -61,7 +61,7 @@ public class VideoSplitterWorker : BackgroundService
 
                 dbContext.Dispose();
 
-				foreach (var video in videos.Where(v => !splitHistory.Contains(v)))
+				foreach (var video in videos.Where(v => !splitHistory.Contains(RawSourceVideoBucket + "/" + v)))
 				{
                     var url = $"http://{_minioConfig.Value.Host}/{RawSourceVideoBucket}/{video}";
                     var (resultVideos, duration) = await _videoProcessingService.SplitEqualAsync(SplittedVideoDuration, url, ".", stoppingToken);
@@ -70,7 +70,8 @@ public class VideoSplitterWorker : BackgroundService
 
 					foreach (var resultVideo in resultVideos)
 					{
-						await _minioBlobService.UploadAsync(SplittedVideosBucket, resultVideo, File.OpenRead(resultVideo), "video/mp4", stoppingToken);
+						await using var stream = File.OpenRead(resultVideo);
+						await _minioBlobService.UploadAsync(SplittedVideosBucket, resultVideo, stream, "video/mp4", stoppingToken);
 
 						dbContext.Set<SplitHistory>().Add(new SplitHistory
 						{

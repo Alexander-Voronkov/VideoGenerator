@@ -4,6 +4,7 @@ using ElevenLabs.Voices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VideoGenerator.Configs;
+using VideoGenerator.Enums;
 using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Services.Implementations;
@@ -23,16 +24,20 @@ public class ElevenLabsTtsService: ITextToSpeechService
         _logger = logger;
     }
     
-    public async Task<TtsResult> CreateTextToSpeech(string text, string language)
+    public async Task<TtsResult> CreateTextToSpeech(string text, SexType sexType, string language)
     {
-        if (!_elevenLabsConfig.Voices.TryGetValue(language, out var voiceId))
+        var voices = sexType == SexType.Female 
+            ? _elevenLabsConfig.Voices.Female 
+            : _elevenLabsConfig.Voices.Male;
+        
+        if (!voices.TryGetValue(language, out var voiceId))
         {
-            _logger.LogError($"Voice not found for language {language}");
-            throw new Exception($"Voice not found for language {language}");
+            _logger.LogError("Voice not found for language {Language} and {Sex}", language, sexType.ToString());
+            throw new Exception($"Voice not found for language {language} - {sexType.ToString()}");
         }
         
         var voice = new Voice(voiceId, "");
-        var request = new TextToSpeechRequest(voice, text, withTimestamps:  true);
+        var request = new TextToSpeechRequest(voice, text, withTimestamps:  true, voiceSettings: new VoiceSettings(speed: _elevenLabsConfig.SpeedMultiplier));
         
         var result = await _elevenLabsClient.TextToSpeechEndpoint.TextToSpeechAsync(request);
         

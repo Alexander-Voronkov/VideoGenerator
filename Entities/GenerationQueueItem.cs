@@ -1,4 +1,6 @@
-﻿namespace VideoGenerator.Entities;
+﻿using VideoGenerator.Enums;
+
+namespace VideoGenerator.Entities;
 
 public class GenerationQueueItem
 {
@@ -8,6 +10,7 @@ public class GenerationQueueItem
 	public string Text { get; set; }
 	public string Description { get; set; }
 	public List<string> Tags { get; set; }
+	public SexType SexType { get; set; } = SexType.Male;
 }
 
 public enum GenerationStatus

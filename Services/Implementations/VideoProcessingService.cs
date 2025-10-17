@@ -278,9 +278,11 @@ public class VideoProcessingService : IVideoProcessingService
         int videoCount = (int)Math.Ceiling(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
 
         var resultVideos = new List<string>();
-
+        
+        _logger.LogInformation("Splitting of the video {inputFilePath} started.", inputFilePath);
         for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
         {
+            _logger.LogInformation("Splitting {I}/{Count}", i, videoCount);
             var path = string.Concat(
                     outputFolderPath,
                     "/",
@@ -294,10 +296,12 @@ public class VideoProcessingService : IVideoProcessingService
                 start,
                 videoLength);
 
-            var result = await conversion.Start(token);
+            var result = await conversion.UseHardwareAcceleration("cuda", "h264_cuvid", "h264_nvenc").Start(token);
 
             totalDuration += (int)result.Duration.TotalSeconds;
             resultVideos.Add(path);
+            
+            _logger.LogInformation("Finished splitting {I}/{Count}", i, videoCount);
 		}
 		_logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
 
