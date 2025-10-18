@@ -44,22 +44,17 @@ public class MinioBlobService : IMinioBlobService
             .WithContentType(contentType), token);
     }
 
-    public async Task<MemoryStream?> DownloadAsync(string bucketName, string objectName, CancellationToken token = default)
+    public async Task DownloadAsync(string bucketName, string objectName, Stream destination, CancellationToken token = default)
     {
-        var ms = new MemoryStream();
         try
         {
             await _minio.GetObjectAsync(new GetObjectArgs()
                 .WithBucket(bucketName)
                 .WithObject(objectName)
-                .WithCallbackStream(stream => stream.CopyTo(ms)), token);
-
-            ms.Position = 0;
-            return ms;
+                .WithCallbackStream(stream => stream.CopyTo(destination)), token);
         }
         catch (Minio.Exceptions.ObjectNotFoundException)
         {
-            return null;
         }
     }
 

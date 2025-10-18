@@ -1,9 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Timeout;
+using System;
 using System.Collections.Concurrent;
 using System.Drawing;
 using VideoGenerator.Extensions;
 using VideoGenerator.Services.Interfaces;
 using Xabe.FFmpeg;
+using Xabe.FFmpeg.Downloader;
 
 namespace VideoGenerator.Services.Implementations;
 
@@ -276,43 +280,73 @@ public class VideoProcessingService : IVideoProcessingService
 
         int videoCount = (int)Math.Ceiling(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
 
-		var existingFilesCount = Enumerable.Range(0, videoCount).Select(x => File.Exists(string.Concat(
-			outputFolderPath,
-			"/",
-			Path.GetFileNameWithoutExtension(inputFilePath),
-			x,
-			Path.GetExtension(inputFilePath)))).Count(x => x);
+        var existingFiles = Enumerable.Range(0, videoCount)
+            .Select(i =>
+            {
+                var path = Path.Combine(
+                    outputFolderPath,
+                    $"{Path.GetFileNameWithoutExtension(inputFilePath)}{i}{Path.GetExtension(inputFilePath)}");
 
-		var i = existingFilesCount;
+                var exists = File.Exists(path);
+
+                return exists ? path : null;
+            })
+            .Where(x => x is not null)
+            .ToHashSet();
+
+		var i = existingFiles.Count;
 		var start = videoLength * i;
 
-		var resultVideos = new List<string>();
+		var resultVideos = new HashSet<string>(existingFiles);
         
         _logger.LogInformation("Splitting of the video {inputFilePath} started.", inputFilePath);
-        for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
-        {
-            _logger.LogInformation("Splitting {I}/{Count}", i, videoCount);
-            var path = string.Concat(
-                    outputFolderPath,
-                    "/",
-                    Path.GetFileNameWithoutExtension(inputFilePath),
-                    i,
-                    Path.GetExtension(inputFilePath));
 
-            var conversion = await FFmpeg.Conversions.FromSnippet.Split(
-                inputFilePath,
-                path,
-                start,
-                videoLength);
+		for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
+		{
+			_logger.LogInformation("Splitting {I}/{Count}", i, videoCount);
 
-            var result = await conversion.UseHardwareAcceleration("cuda", "h264_cuvid", "h264_nvenc").Start(token);
+			var outputFile = Path.Combine(
+				outputFolderPath,
+				$"{Path.GetFileNameWithoutExtension(inputFilePath)}{i}{Path.GetExtension(inputFilePath)}");
 
-            totalDuration += (int)result.Duration.TotalSeconds;
-            resultVideos.Add(path);
-            
-            _logger.LogInformation("Finished splitting {I}/{Count}", i, videoCount);
+			try
+			{
+				var conversion = await FFmpeg.Conversions.FromSnippet.Split(
+					inputFilePath,
+					outputFile,
+					start,
+					videoLength);
+
+				conversion.OnProgress += Conversion_OnProgress;
+
+				var result = await conversion
+					.UseHardwareAcceleration("cuda", "h264_cuvid", "h264_nvenc")
+					.Start(token);
+
+				totalDuration += (int)result.Duration.TotalSeconds;
+				resultVideos.Add(outputFile);
+
+				_logger.LogInformation("Finished splitting {I}/{Count}", i, videoCount);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error while splitting video {File} part {Part}", inputFilePath, i);
+
+				if (File.Exists(outputFile))
+				{
+					try
+					{
+						File.Delete(outputFile);
+					}
+					catch (Exception deleteEx)
+					{
+						_logger.LogWarning(deleteEx, "Failed to delete incomplete output file {File}", outputFile);
+					}
+				}
+			}
 		}
-		_logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
+
+		_logger.LogInformation("Splitting of the video took {TotalDuration} seconds.", totalDuration);
 
 		return (resultVideos.ToArray(), TimeSpan.FromSeconds(totalDuration));
     }

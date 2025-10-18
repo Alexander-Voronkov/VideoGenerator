@@ -1,0 +1,52 @@
+name: Build and Deploy .NET App via SSH
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Build Docker image
+        run: |
+          docker build -t videogenerator:latest .
+          
+      - name: Save Docker image
+        run: docker save videogenerator:latest -o videogenerator.tar
+        
+      - name: Copy image to remote server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VM_SECRET_KEY }}
+          source: "videogenerator.tar"
+          target: "~/videogenerator.tar"
+          
+      - name: Deploy container on remote server
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VM_SECRET_KEY }}
+          port: 22
+          script: |
+            echo "📦 Loading image..."
+            docker load -i ~/videogenerator.tar
+
+            echo "🧹 Removing old container..."
+            docker stop videogenerator || true
+            docker rm videogenerator || true
+
+            echo "🚀 Starting new container..."
+            docker run -d \
+              --name videogenerator \
+              --restart always \
+              -e DOTNET_ENVIRONMENT=Production \
+              videogenerator:latest
+
+            echo "✅ Deploy complete!"

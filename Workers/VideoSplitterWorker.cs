@@ -40,7 +40,7 @@ public class VideoSplitterWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken = default)
     {
-        await Task.Delay(1, stoppingToken);
+		await Task.Delay(1, stoppingToken);
 
 		await _minioBlobService.MakeBucketPublicAsync(RawSourceVideoBucket, stoppingToken);
 		await _minioBlobService.MakeBucketPublicAsync(SplittedVideosBucket, stoppingToken);
@@ -64,14 +64,25 @@ public class VideoSplitterWorker : BackgroundService
 				foreach (var video in videos.Where(v => !splitHistory.Contains(RawSourceVideoBucket + "/" + v)))
 				{
                     var url = $"http://{_minioConfig.Value.Host}/{RawSourceVideoBucket}/{video}";
-                    var (resultVideos, duration) = await _videoProcessingService.SplitEqualAsync(SplittedVideoDuration, url, ".", stoppingToken);
+
+                    var path = Path.Combine(Directory.GetCurrentDirectory(), video);
+
+                    if (!System.IO.File.Exists(path))
+                    {
+						await using (var str = System.IO.File.Open(path, FileMode.OpenOrCreate))
+						{
+							await _minioBlobService.DownloadAsync(RawSourceVideoBucket, video, str, stoppingToken);
+						}
+					}
+
+					var (resultVideos, duration) = await _videoProcessingService.SplitEqualAsync(SplittedVideoDuration, path, ".", stoppingToken);
 
 					dbContext = _dbContextFactory.CreateDbContext();
 
 					foreach (var resultVideo in resultVideos)
 					{
-						await using var stream = File.OpenRead(resultVideo);
-						await _minioBlobService.UploadAsync(SplittedVideosBucket, resultVideo, stream, "video/mp4", stoppingToken);
+						await using var stream = System.IO.File.OpenRead(resultVideo);
+						await _minioBlobService.UploadAsync(SplittedVideosBucket, Path.GetFileName(resultVideo), stream, "video/mp4", stoppingToken);
 
 						dbContext.Set<SplitHistory>().Add(new SplitHistory
 						{
@@ -106,7 +117,7 @@ public class VideoSplitterWorker : BackgroundService
 		string[] mp4Files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.mp4");
 		foreach (var file in mp4Files)
 		{
-			File.Delete(file);
+			System.IO.File.Delete(file);
 		}
 	}
 }
