@@ -91,7 +91,10 @@ public class VideoMakerWorker : BackgroundService
 					if (!ttsExists)
 					{
 						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, pendingText.SexType, language);
-						await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, new MemoryStream(audioResult.Audio), "audio/mpeg", token);
+						await using (var str = new MemoryStream(audioResult.Audio))
+						{
+							await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
+						}
 
 						if (generatedSubtitle is not null)
 						{
@@ -116,7 +119,10 @@ public class VideoMakerWorker : BackgroundService
 					if (!assExists)
 					{
 						var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9);
-						await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, new MemoryStream(Encoding.UTF8.GetBytes(subtitles)), "text/ssa", token);
+						await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
+						{
+							await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);
+						}
 						generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
 					}
 

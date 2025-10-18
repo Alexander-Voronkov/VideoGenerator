@@ -52,8 +52,8 @@ public class VideoGenerationService : IVideoGenerationService
 		for (double i = 0; i < mediaInfo.Duration.TotalMinutes;)
 		{
 			var video = await dbContext.Set<SplitHistory>()
-				.OrderByDescending(x => x.LastTookPartAt)
-				.OrderByDescending(x => x.Duration)
+				.OrderBy(x => x.LastTookPartAt)
+				.ThenBy(x => x.Duration)
 				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i 
                     || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i), token);
 
