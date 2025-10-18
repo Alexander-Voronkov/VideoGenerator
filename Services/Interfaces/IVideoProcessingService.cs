@@ -26,6 +26,8 @@ public interface IVideoProcessingService
         string audioPath,
         string inputFilePath,
         string outputFilePath,
+        float volume = 1F,
+        bool overrideOriginalAudio = false,
         CancellationToken token = default);
     Task<TimeSpan> DetachAudioAsync(
         string inputFilePath,
@@ -64,4 +66,6 @@ public interface IVideoProcessingService
         string subtitlesPath = null,
         string assPath = null,
         CancellationToken token = default);
+    
+    Task<TimeSpan> LoopForAsync(string inputFilePath, string outputFilePath, TimeSpan duration, CancellationToken token = default);
 }

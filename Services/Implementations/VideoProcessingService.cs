@@ -31,12 +31,16 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="audioPath">Audio file path to be attached.</param>
     /// <param name="inputFilePath">Video file path where the audio will be attached.</param>
     /// <param name="outputFilePath">Result video file path.</param>
+    /// <param name="volume">Volume of attached audio, Defaults to 1</param>
+    /// <param name="overrideOriginalAudio">If set to true - original audio would be overridden</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
     public async Task<TimeSpan> AttachAudioAsync(
         string audioPath,
         string inputFilePath,
         string outputFilePath,
+        float volume = 1F,
+        bool overrideOriginalAudio = false,
         CancellationToken token = default)
     {
         var attachedAudioInfo = await FFmpeg.GetMediaInfo(audioPath, token);
@@ -56,14 +60,25 @@ public class VideoProcessingService : IVideoProcessingService
             // Input video
             .AddParameter($"-i \"{inputFilePath}\"", ParameterPosition.PreInput)
             // Input audio
-            .AddParameter($"-i \"{audioPath}\"", ParameterPosition.PreInput)
-            // Map video and audio streams
-            .AddParameter("-c:v copy -c:a aac -map 0:v:0 -map 1:a:0")
+            .AddParameter($"-i \"{audioPath}\"", ParameterPosition.PreInput);
+        if (overrideOriginalAudio)
+        {
+            // Replace original audio
+            conversion.AddParameter($"-map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -filter:a volume={volume}");
+        }
+        else
+        {
+            // Mix original audio with new audio, apply volume to new audio only
+            conversion.AddParameter(
+                $"-filter_complex [1:a]volume={volume}[a1];[0:a][a1]amix=inputs=2:duration=longest:dropout_transition=2[aout] -map 0:v -map [aout] -c:v copy -c:a aac");
+        }
             // Overwrite without asking
-            .AddParameter("-y")
-            // Output path
-            .SetOutput(outputFilePath).SetOverwriteOutput(true);
+            conversion = conversion
+                .AddParameter("-y")
+                // Output path
+                .SetOutput(outputFilePath).SetOverwriteOutput(true);
         conversion.OnProgress += Conversion_OnProgress;
+
         var result = await conversion.Start(token);
 
         _logger.LogInformation($"Audio attaching took {result.Duration.TotalSeconds} seconds.");
@@ -402,6 +417,20 @@ public class VideoProcessingService : IVideoProcessingService
 		_logger.LogInformation($"Adding subtitles took {result.Duration.TotalSeconds}");
 
 		return result.Duration;
+    }
+
+    public async Task<TimeSpan> LoopForAsync(string inputFilePath, string outputFilePath, TimeSpan duration,
+        CancellationToken token = default)
+    {
+        var conversion = FFmpeg.Conversions.New()
+            .AddParameter($"-stream_loop -1 -i \"{inputFilePath}\" -t {duration.ToFFmpeg()} -c copy \"{outputFilePath}\"");
+        
+        conversion.OnProgress += Conversion_OnProgress;
+        
+        var result = await conversion.Start(token);
+        _logger.LogInformation("Looping for {Duration} took {JobDuration} seconds.",  duration, result.Duration);
+        
+        return result.Duration;
     }
 
     private void Conversion_OnProgress(object sender, Xabe.FFmpeg.Events.ConversionProgressEventArgs args)

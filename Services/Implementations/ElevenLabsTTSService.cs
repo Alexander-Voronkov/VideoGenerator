@@ -1,4 +1,5 @@
-﻿using ElevenLabs;
+﻿using System.Text;
+using ElevenLabs;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using Microsoft.Extensions.Logging;
@@ -37,10 +38,21 @@ public class ElevenLabsTtsService: ITextToSpeechService
         }
         
         var voice = new Voice(voiceId, "");
-        var request = new TextToSpeechRequest(voice, text, withTimestamps:  true, voiceSettings: new VoiceSettings(speed: _elevenLabsConfig.SpeedMultiplier));
+        var request = new TextToSpeechRequest(voice, PrepareText(text), withTimestamps:  true, voiceSettings: new VoiceSettings(speed: _elevenLabsConfig.SpeedMultiplier));
         
         var result = await _elevenLabsClient.TextToSpeechEndpoint.TextToSpeechAsync(request);
         
         return new TtsResult(result.ClipData.ToArray(), result.TimestampedTranscriptCharacters);
+    }
+
+    private string PrepareText(string rawText)
+    {
+        var sb = new StringBuilder(rawText);
+
+        sb.Replace("--", "-");
+        sb.Replace("/n/n", " ");
+        sb.Replace("/n", " ");
+
+        return sb.ToString();
     }
 }

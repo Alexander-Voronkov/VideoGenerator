@@ -46,6 +46,9 @@ public class VideoGenerationService : IVideoGenerationService
 
 		var dbContext = _dbContextFactory.CreateDbContext();
 
+		var availableMusic = await _minioBlobService.ListAsync("background-music", token);
+		var backgroundMusic = "background-music/" + availableMusic.OrderBy(x => Random.Shared.Next()).First();
+
 		for (double i = 0; i < mediaInfo.Duration.TotalMinutes;)
 		{
 			var video = await dbContext.Set<SplitHistory>()
@@ -67,42 +70,62 @@ public class VideoGenerationService : IVideoGenerationService
 
 		dbContext.Dispose();
 
-		var tempMergedVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}");
-        var tempMergedVideoPath1 = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}");
-        var tempMergedVideoPath2 = Path.Combine(Path.GetTempPath(), $"merged_with_sound_{objectName}");
-        var tempMergedVideoPath3 = Path.Combine(Path.GetTempPath(), $"merged_with_subtitles_{objectName}");
+		var tempBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}");
+        var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}");
+        var tempLoopedMusic = Path.Combine(Path.GetTempPath(), $"music_{objectName}");
+        var tempVideoWithMusic = Path.Combine(Path.GetTempPath(), $"merged_with_music_{objectName}");
+        var tempVideoWithNarration = Path.Combine(Path.GetTempPath(), $"merged_with_sound_{objectName}");
+        var tempVideoWithSubtitles = Path.Combine(Path.GetTempPath(), $"merged_with_subtitles_{objectName}");
 
-		if (!File.Exists(tempMergedVideoPath))
+		if (!File.Exists(tempBackgroundVideoPath))
 		{
 			_logger.LogInformation("Started merging");
 			if (selectedVideos.Count == 1)
 			{
-				tempMergedVideoPath = $"http://{_minioBlobConfig.Host}/{selectedVideos.Single().BlobPath}";
+				tempBackgroundVideoPath = $"http://{_minioBlobConfig.Host}/{selectedVideos.Single().BlobPath}";
 			}
 			else
 			{
 				await _videoService.MergeVideosAsync(
 					selectedVideos.Select(x => $"http://{_minioBlobConfig.Host}/{x.BlobPath}").ToArray(),
-					tempMergedVideoPath,
+					tempBackgroundVideoPath,
 					token);
 			}
 		}
 
-        var tempMergedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempMergedVideoPath);
+        var tempMergedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempBackgroundVideoPath);
 
-		if (!File.Exists(tempMergedVideoPath1))
+		if (!File.Exists(tempTrimmedBackgroundVideoPath))
 		{
 			_logger.LogInformation("Started splitting");
-			await _videoService.SplitAtAsync(tempMergedVideoPath, tempMergedVideoPath1, TimeSpan.Zero, mediaInfo.Duration, token);
+			await _videoService.SplitAtAsync(tempBackgroundVideoPath, tempTrimmedBackgroundVideoPath, TimeSpan.Zero, mediaInfo.Duration, token);
 		}
 
-		if (!File.Exists(tempMergedVideoPath2))
+		if (!File.Exists(tempLoopedMusic))
+		{
+			_logger.LogInformation("Started looping music for video");
+			await _videoService.LoopForAsync($"http://{_minioBlobConfig.Host}/{backgroundMusic}", tempLoopedMusic, mediaInfo.Duration, token);
+		}
+
+		if (!File.Exists(tempVideoWithMusic))
+		{
+			_logger.LogInformation("Started attaching music");
+			await _videoService.AttachAudioAsync(
+				tempLoopedMusic, 
+				tempTrimmedBackgroundVideoPath, 
+				tempVideoWithMusic, 
+				volume: 0.1F, 
+				overrideOriginalAudio: true, 
+				token: token);
+		}
+
+		if (!File.Exists(tempVideoWithNarration))
 		{
 			_logger.LogInformation("Started attaching audio");
-			await _videoService.AttachAudioAsync(audioPath, tempMergedVideoPath1, tempMergedVideoPath2, token);
+			await _videoService.AttachAudioAsync(audioPath, tempVideoWithMusic, tempVideoWithNarration, token: token);
 		}
 
-		if (!File.Exists(tempMergedVideoPath3))
+		if (!File.Exists(tempVideoWithSubtitles))
 		{
 			_logger.LogInformation("Started adding subtitles");
 			using var http = new HttpClient();
@@ -110,7 +133,7 @@ public class VideoGenerationService : IVideoGenerationService
 			var tempSubtitlePath = Path.Combine(Path.GetTempPath(), $"subtitles_{Path.GetFileNameWithoutExtension(objectName)}.ass");
 			await File.WriteAllBytesAsync(tempSubtitlePath, data, token);
 
-			await _videoService.AddSubtitlesAsync(tempMergedVideoPath2, tempMergedVideoPath3, assPath: tempSubtitlePath, token: token);
+			await _videoService.AddSubtitlesAsync(tempVideoWithNarration, tempVideoWithSubtitles, assPath: tempSubtitlePath, token: token);
 
 			File.Delete(tempSubtitlePath);
 		}
@@ -121,7 +144,7 @@ public class VideoGenerationService : IVideoGenerationService
 
 		if (!videoExists)
 		{
-			await using var stream = File.OpenRead(tempMergedVideoPath3);
+			await using var stream = File.OpenRead(tempVideoWithSubtitles);
 			await _minioBlobService.UploadAsync(
 				bucketName,
 				objectName,
@@ -130,10 +153,12 @@ public class VideoGenerationService : IVideoGenerationService
 				token);
 		}
 		
-		TryDelete(tempMergedVideoPath);
-		TryDelete(tempMergedVideoPath1);
-		TryDelete(tempMergedVideoPath2);
-		TryDelete(tempMergedVideoPath3);
+		TryDelete(tempBackgroundVideoPath);
+		TryDelete(tempTrimmedBackgroundVideoPath);
+		TryDelete(tempVideoWithNarration);
+		TryDelete(tempVideoWithSubtitles);
+		TryDelete(tempLoopedMusic);
+		TryDelete(tempVideoWithMusic);
     }
 
 	private void TryDelete(string path)

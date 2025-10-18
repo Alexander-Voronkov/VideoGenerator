@@ -41,8 +41,8 @@ public class AssConvertService : IAssConvertService
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, " +
             "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, " +
             "Alignment, MarginL, MarginR, MarginV, Encoding\n" +
-            $"Style: Default,{_config.PrimaryStyle}\n" +
-            $"Style: Highlight,{_config.HighlightStyle}\n\n" +
+            $"{_config.PrimaryStyle}\n" +
+            $"{_config.HighlightStyle}\n\n" +
             "[Events]\n" +
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
     }

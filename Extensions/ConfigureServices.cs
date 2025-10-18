@@ -50,7 +50,7 @@ public static partial class Extensions
 
             // add hosted services
 
-            .AddHostedService<VideoSplitterWorker>();
-        //.AddHostedService<VideoMakerWorker>();
+            //.AddHostedService<VideoSplitterWorker>();
+        .AddHostedService<VideoMakerWorker>();
     }
 }

@@ -28,6 +28,7 @@ public class VideoMakerWorker : BackgroundService
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string AssSubtitlesBucket = "ass-subtitles";
 	private const string GeneratedVideosBucket = "generated-videos";
+	private const string BackgroundMusic = "background-music";
 
     public VideoMakerWorker(
 		ILogger<VideoMakerWorker> logger, 
@@ -56,6 +57,7 @@ public class VideoMakerWorker : BackgroundService
 		await _minioBlobService.MakeBucketPublicAsync(AssSubtitlesBucket, token);
 		await _minioBlobService.MakeBucketPublicAsync(TtsSubtitlesBucket, token);
 		await _minioBlobService.MakeBucketPublicAsync(GeneratedVideosBucket, token);
+		await _minioBlobService.MakeBucketPublicAsync(BackgroundMusic, token);
 
 		while (!token.IsCancellationRequested)
 		{
