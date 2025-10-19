@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0.10-noble-arm64v8 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0-noble-arm64v8 AS build
 WORKDIR /app
 
 COPY *.csproj ./
@@ -9,7 +9,7 @@ COPY ./Fonts/*.ttf /usr/local/share/fonts
 COPY . ./
 RUN dotnet publish -c Release -o /out
 
-FROM mcr.microsoft.com/dotnet/runtime:9.0.10-noble-arm64v8 AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:9.0-noble-arm64v8 AS runtime
 WORKDIR /app
 
 ENV DOTNET_ENVIRONMENT=Production
