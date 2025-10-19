@@ -36,7 +36,7 @@ public static class Program
         => Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostcontext, configBuilder) =>
             {
-                configBuilder.AddJsonFile($"appsettings{hostcontext.HostingEnvironment.EnvironmentName ?? "Development"}.json");
+                configBuilder.AddJsonFile($"appsettings.{hostcontext.HostingEnvironment.EnvironmentName ?? "Development"}.json");
                 configBuilder.AddJsonFile("logging.json");
             })
 			.ConfigureServices(ConfigureServices);

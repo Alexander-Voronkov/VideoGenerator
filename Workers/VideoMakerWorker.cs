@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using VideoGenerator.Configs;
 using VideoGenerator.Entities;
+using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 
@@ -53,7 +54,7 @@ public class VideoMakerWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
         await Task.Delay(1, token);
-
+        
 		await _minioBlobService.MakeBucketPublicAsync(AssSubtitlesBucket, token);
 		await _minioBlobService.MakeBucketPublicAsync(TtsSubtitlesBucket, token);
 		await _minioBlobService.MakeBucketPublicAsync(GeneratedVideosBucket, token);
