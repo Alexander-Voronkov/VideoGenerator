@@ -5,7 +5,6 @@ COPY *.csproj ./
 RUN dotnet restore
 
 COPY ./Fonts/*.ttf /usr/local/share/fonts
-RUN fc-cache -fv
 
 COPY . ./
 RUN dotnet publish -c Release -o /out
