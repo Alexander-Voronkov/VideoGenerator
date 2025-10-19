@@ -46,7 +46,7 @@ jobs:
             sudo docker run -d \
               --name videogenerator \
               --restart always \
-              --network npm_network \
+              --network npmnetwork \
               -e DOTNET_ENVIRONMENT=Production \
               videogenerator:latest
 
