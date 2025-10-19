@@ -36,7 +36,7 @@ jobs:
           port: 22
           script: |
             echo "📦 Loading image..."
-            sudo docker load -i ~/videogenerator.tar
+            sudo docker load -i ~/videogenerator.tar/videogenerator.tar
 
             echo "🧹 Removing old container..."
             sudo docker stop videogenerator || true
