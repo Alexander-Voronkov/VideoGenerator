@@ -14,19 +14,11 @@ namespace VideoGenerator.Services.Implementations;
 public class VideoProcessingService : IVideoProcessingService
 {
     private readonly ILogger _logger;
-    private readonly ConcurrentBag<string> _fonts;
     private int lastProgress = 0;
 
     public VideoProcessingService(ILogger<VideoProcessingService> logger)
     {
         _logger = logger;
-        _fonts = new ConcurrentBag<string>(
-            Directory.GetFiles(
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                    "Fonts"),
-                "*.{ttf,fon}",
-                SearchOption.AllDirectories));
     }
 
     /// <summary>
@@ -395,8 +387,7 @@ public class VideoProcessingService : IVideoProcessingService
             throw new Exception("Cannot write text on a file without video stream.");
         }
 
-        var font = _fonts.FirstOrDefault(x => x.Contains(fontName, StringComparison.InvariantCultureIgnoreCase))
-            ?? _fonts.ElementAt(Random.Shared.Next(0, _fonts.Count)) ?? fontName;
+        var font = "Arial";
         var stream = inputFileInfo.VideoStreams.FirstOrDefault();
         var color = Color.FromKnownColor(textColor).ToHexColor();
         var position = textPosition.ToFFMpegPosition(leftPadding, topPadding);
