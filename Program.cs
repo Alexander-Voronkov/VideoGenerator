@@ -33,8 +33,6 @@ public static class Program
 			}
         }));
 
-        FFmpeg.SetExecutablesPath(Directory.GetCurrentDirectory());
-
 		await host.RunAsync();
     }
 
