@@ -12,10 +12,3 @@ public class GenerationQueueItem
 	public List<string> Tags { get; set; }
 	public SexType SexType { get; set; } = SexType.Male;
 }
-
-public enum GenerationStatus
-{
-	ReadyToProcess = 0,
-	Processing,
-	Processed,
-}

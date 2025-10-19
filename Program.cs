@@ -13,7 +13,11 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
-		var host = CreateHostBuilder(args).Build();
+#if DEBUG
+		Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Development");
+#endif
+
+        var host = CreateHostBuilder(args).Build();
         var logger = host.Services.GetRequiredService<ILogger<VideoGenerationService>>();
 
         long prevlog = 0;
@@ -36,7 +40,7 @@ public static class Program
         => Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostcontext, configBuilder) =>
             {
-                configBuilder.AddJsonFile($"appsettings{hostcontext.HostingEnvironment.EnvironmentName ?? "Development"}.json");
+                configBuilder.AddJsonFile($"appsettings.{hostcontext.HostingEnvironment.EnvironmentName ?? "Development"}.json");
                 configBuilder.AddJsonFile("logging.json");
             })
 			.ConfigureServices(ConfigureServices);

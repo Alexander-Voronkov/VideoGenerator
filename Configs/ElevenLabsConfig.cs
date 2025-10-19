@@ -1,6 +1,4 @@
-﻿using VideoGenerator.Services.Interfaces;
-
-namespace VideoGenerator.Configs;
+﻿namespace VideoGenerator.Configs;
 
 public class VoiceConfig
 {
@@ -10,7 +8,7 @@ public class VoiceConfig
 
 public class ElevenLabsConfig
 {
-	public string ApiKey { get; set; }
+	public string[] ApiKeys { get; set; }
 	
 	public VoiceConfig Voices { get; set; } = new VoiceConfig();
 	
