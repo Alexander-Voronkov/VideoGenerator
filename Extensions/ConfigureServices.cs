@@ -11,6 +11,7 @@ using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
+using VideoGenerator.Workers;
 
 namespace VideoGenerator.Extensions;
 
@@ -52,17 +53,14 @@ public static partial class Extensions
 
 			var enabledWorkers = hostContext.Configuration.GetSection("Workers").Get<string[]>() ?? Array.Empty<string>();
 
-		    foreach (var workerName in enabledWorkers)
-		    {
-			    var type = Assembly.GetExecutingAssembly()
-				    .GetTypes()
-				    .FirstOrDefault(t => t.Name == workerName && typeof(IHostedService).IsAssignableFrom(t));
+		    if (enabledWorkers.Contains(nameof(VideoMakerWorker)))
+            {
+                services.AddHostedService<VideoMakerWorker>();
+		    }
 
-			    if (type != null)
-			    {
-				    services.AddSingleton(typeof(IHostedService), sp =>
-					    (IHostedService)ActivatorUtilities.CreateInstance(sp, type));
-			    }
+		    if (enabledWorkers.Contains(nameof(VideoSplitterWorker)))
+		    {
+			    services.AddHostedService<VideoSplitterWorker>();
 		    }
 	}
 }
