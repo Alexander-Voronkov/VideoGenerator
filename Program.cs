@@ -20,6 +20,8 @@ public static class Program
         var host = CreateHostBuilder(args).Build();
         var logger = host.Services.GetRequiredService<ILogger<VideoGenerationService>>();
 
+        logger.LogInformation("Start application...");
+
         long prevlog = 0;
 		await FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, new Progress<ProgressInfo>((p) =>
         {
