@@ -1,4 +1,4 @@
-name: Deploy .NET App via SSH (Build on Server)
+name: Deploy .NET App via SSH (Rebuild Container)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy source code to remote server
+      - name: Copy updated source code to remote server
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -20,7 +20,7 @@ jobs:
           source: "."
           target: "~/videogenerator-src"
 
-      - name: Build and run Docker container on remote server
+      - name: Rebuild and restart container on remote server
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -31,14 +31,18 @@ jobs:
             echo "🚀 Starting deploy on $(hostname)"
             cd ~/videogenerator-src
 
-            echo "🧹 Cleaning up old containers..."
-            sudo docker stop videogenerator || true
-            sudo docker rm videogenerator || true
-
-            echo "🔨 Building Docker image on remote server..."
+            echo "🔨 Rebuilding Docker image..."
             sudo docker build -t videogenerator:latest .
 
-            echo "🔥 Running container..."
+            if sudo docker ps -q -f name=videogenerator > /dev/null; then
+              echo "♻️ Restarting existing container..."
+              sudo docker stop videogenerator
+              sudo docker rm videogenerator
+            else
+              echo "🆕 No existing container found, creating new one..."
+            fi
+
+            echo "🔥 Running updated container..."
             sudo docker run -d \
               --name videogenerator \
               --restart always \

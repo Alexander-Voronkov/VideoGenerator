@@ -42,6 +42,8 @@ public class VideoSplitterWorker : BackgroundService
     {
 		await Task.Delay(1, stoppingToken);
 
+        _logger.LogInformation("Video splitter job started working...");
+
 		await _minioBlobService.MakeBucketPublicAsync(RawSourceVideoBucket, stoppingToken);
 		await _minioBlobService.MakeBucketPublicAsync(SplittedVideosBucket, stoppingToken);
 
