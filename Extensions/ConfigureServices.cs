@@ -4,13 +4,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using System.Reflection;
 using System.Text;
 using VideoGenerator.Configs;
 using VideoGenerator.Configurations;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Implementations;
 using VideoGenerator.Services.Interfaces;
-using VideoGenerator.Workers;
 
 namespace VideoGenerator.Extensions;
 
@@ -46,11 +46,23 @@ public static partial class Extensions
             .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
             .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
             .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
-            .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
+            .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"));
 
-            // add hosted services
+			// add hosted services
 
-            //.AddHostedService<VideoSplitterWorker>();
-        .AddHostedService<VideoMakerWorker>();
-    }
+			var enabledWorkers = hostContext.Configuration.GetSection("Workers").Get<string[]>() ?? Array.Empty<string>();
+
+		    foreach (var workerName in enabledWorkers)
+		    {
+			    var type = Assembly.GetExecutingAssembly()
+				    .GetTypes()
+				    .FirstOrDefault(t => t.Name == workerName && typeof(IHostedService).IsAssignableFrom(t));
+
+			    if (type != null)
+			    {
+				    services.AddSingleton(typeof(IHostedService), sp =>
+					    (IHostedService)ActivatorUtilities.CreateInstance(sp, type));
+			    }
+		    }
+	}
 }
