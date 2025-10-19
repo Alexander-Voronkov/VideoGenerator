@@ -36,14 +36,14 @@ jobs:
           port: 22
           script: |
             echo "📦 Loading image..."
-            docker load -i ~/videogenerator.tar
+            sudo docker load -i ~/videogenerator.tar
 
             echo "🧹 Removing old container..."
-            docker stop videogenerator || true
-            docker rm videogenerator || true
+            sudo docker stop videogenerator || true
+            sudo docker rm videogenerator || true
 
             echo "🚀 Starting new container..."
-            docker run -d \
+            sudo docker run -d \
               --name videogenerator \
               --restart always \
               -e DOTNET_ENVIRONMENT=Production \
