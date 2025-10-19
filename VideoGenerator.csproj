@@ -11,6 +11,9 @@
     <Compile Remove="Constants\**" />
     <EmbeddedResource Remove="Constants\**" />
     <None Remove="Constants\**" />
+    <None Update="appsettings.Production.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

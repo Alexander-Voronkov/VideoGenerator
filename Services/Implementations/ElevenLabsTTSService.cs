@@ -1,4 +1,5 @@
 ﻿using ElevenLabs;
+using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using Microsoft.Extensions.Logging;
@@ -40,7 +41,7 @@ public class ElevenLabsTtsService: ITextToSpeechService
         }
         
         var voice = new Voice(voiceId, "");
-        var request = new TextToSpeechRequest(voice, PrepareText(text), withTimestamps:  true, voiceSettings: new VoiceSettings(speed: _elevenLabsConfig.SpeedMultiplier));
+		var request = new TextToSpeechRequest(voice, PrepareText(text), withTimestamps: true, model: Model.TurboV2_5, voiceSettings: new VoiceSettings(speed: _elevenLabsConfig.SpeedMultiplier));
 
 		var retryPolicy = Policy
 		    .Handle<Exception>()
