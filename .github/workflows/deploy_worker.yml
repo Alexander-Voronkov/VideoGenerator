@@ -11,17 +11,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image for ARM64
+      - name: Build Docker image
         run: |
-          docker buildx build \
-            --platform linux/arm64 \
-            -t videogenerator:latest \
-            --load \
-            .
-
+          docker build -t videogenerator:latest .
+          
       - name: Save Docker image
         run: docker save videogenerator:latest -o videogenerator.tar
         
@@ -43,7 +36,7 @@ jobs:
           port: 22
           script: |
             echo "📦 Loading image..."
-            sudo docker load -i ~/videogenerator.tar
+            sudo docker load -i ~/videogenerator.tar/videogenerator.tar
 
             echo "🧹 Removing old container..."
             sudo docker stop videogenerator || true
