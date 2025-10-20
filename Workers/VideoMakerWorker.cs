@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 using VideoGenerator.Configs;
 using VideoGenerator.Entities;
-using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 
@@ -91,7 +90,6 @@ public class VideoMakerWorker : BackgroundService
 					var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
 						.FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
 
-					dbContext.Dispose();
 
 					if (!ttsExists)
 					{
@@ -117,7 +115,6 @@ public class VideoMakerWorker : BackgroundService
 
 							dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
 							await dbContext.SaveChangesAsync(token);
-							dbContext.Dispose();
 						}
 					}
 
@@ -133,9 +130,7 @@ public class VideoMakerWorker : BackgroundService
 
 					_logger.LogInformation("VideoMakerWorker: end subtitles generation.");
 
-					dbContext = _dbContextFactory.CreateDbContext();
 					await dbContext.SaveChangesAsync(token);
-
 					dbContext.Dispose();
 
 					var audioPath = $"http://{_minioBlobConfig.Host}/{ttsBlobPath}";
@@ -168,7 +163,7 @@ public class VideoMakerWorker : BackgroundService
 					dbContext = _dbContextFactory.CreateDbContext();
 
 					dbContext.Attach(pendingText);
-					pendingText.Status = GenerationStatus.Processing;
+					pendingText.Status = GenerationStatus.ReadyToProcess;
 
 					await dbContext.SaveChangesAsync(token);
 				}

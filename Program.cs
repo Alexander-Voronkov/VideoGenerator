@@ -33,6 +33,9 @@ public static class Program
 			}
         }));
 
+#if DEBUG
+        FFmpeg.SetExecutablesPath(Directory.GetCurrentDirectory());
+#endif
 		await host.RunAsync();
     }
 

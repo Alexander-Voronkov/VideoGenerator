@@ -18,7 +18,10 @@ public class VideoGenerationService : IVideoGenerationService
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 	private readonly ILogger _logger;
 
-    public VideoGenerationService(
+	private const string BackgroundMusicBucket = "background-music";
+
+
+	public VideoGenerationService(
         IVideoProcessingService videoService,
         IMinioBlobService minioBlobService,
 		IOptions<MinioBlobConfig> minioBlobConfig,
@@ -46,13 +49,18 @@ public class VideoGenerationService : IVideoGenerationService
 
 		var dbContext = _dbContextFactory.CreateDbContext();
 
-		var availableMusic = await _minioBlobService.ListAsync("background-music", token);
+		_logger.LogInformation($"{nameof(VideoGenerationService)}: start searching for available background music.");
+
+		var availableMusic = await _minioBlobService.ListAsync(BackgroundMusicBucket, token);
 		var backgroundMusic = "background-music/" + availableMusic.OrderBy(x => Random.Shared.Next()).First();
+
+		_logger.LogInformation($"{nameof(VideoGenerationService)}: end searching for available background music.");
 
 		for (double i = 0; i < mediaInfo.Duration.TotalMinutes;)
 		{
 			var video = await dbContext.Set<SplitHistory>()
-				.OrderBy(x => x.LastTookPartAt)
+				.OrderBy(x => x.LastTookPartAt == null)
+				.ThenBy(x => x.LastTookPartAt)
 				.ThenBy(x => x.Duration)
 				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i 
                     || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i), token);
