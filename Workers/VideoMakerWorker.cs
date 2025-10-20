@@ -158,8 +158,10 @@ public class VideoMakerWorker : BackgroundService
 
 					dbContext.Dispose();
 				}
-				catch
+				catch(Exception ex)
 				{
+					_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
+
 					dbContext = _dbContextFactory.CreateDbContext();
 
 					dbContext.Attach(pendingText);
