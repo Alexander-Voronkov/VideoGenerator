@@ -71,6 +71,7 @@ public class VideoMakerWorker : BackgroundService
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
 					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+					.Where(x => x.Id == "1l04t5i")
 					.FirstOrDefaultAsync(token);
 
 				pendingText.Status = GenerationStatus.Processing;
@@ -137,7 +138,7 @@ public class VideoMakerWorker : BackgroundService
 
 					_logger.LogInformation("VideoMakerWorker: start video generation.");
 
-					await _videoService.CreateVideo(audioPath, subtitlesPath, GeneratedVideosBucket, objectName + ".mp4", token);
+					await _videoService.CreateVideo(objectName, token);
 
 					_logger.LogInformation("VideoMakerWorker: end video generation.");
 
