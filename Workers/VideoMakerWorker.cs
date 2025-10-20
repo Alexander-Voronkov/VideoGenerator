@@ -21,7 +21,7 @@ public class VideoMakerWorker : BackgroundService
 	private readonly IMinioBlobService _minioBlobService;
 	private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 
-	private const int JobIntervalInMinutes = 1;
+	private const int JobIntervalInMinutes = 10;
 
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string AssSubtitlesBucket = "ass-subtitles";
