@@ -62,6 +62,8 @@ public class VideoMakerWorker : BackgroundService
 
 		while (!token.IsCancellationRequested)
 		{
+			_logger.LogInformation("VideoMakerWorker started.");
+
 			try
 			{
 				const string language = "en";
@@ -74,6 +76,8 @@ public class VideoMakerWorker : BackgroundService
 
 				pendingText.Status = GenerationStatus.Processing;
 				await dbContext.SaveChangesAsync(token);
+
+				_logger.LogInformation("VideoMakerWorker: start subtitles generation.");
 
 				try
 				{
@@ -127,6 +131,8 @@ public class VideoMakerWorker : BackgroundService
 						generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
 					}
 
+					_logger.LogInformation("VideoMakerWorker: end subtitles generation.");
+
 					dbContext = _dbContextFactory.CreateDbContext();
 					await dbContext.SaveChangesAsync(token);
 
@@ -135,8 +141,11 @@ public class VideoMakerWorker : BackgroundService
 					var audioPath = $"http://{_minioBlobConfig.Host}/{ttsBlobPath}";
 					var subtitlesPath = $"http://{_minioBlobConfig.Host}/{assBlobPath}";
 
+					_logger.LogInformation("VideoMakerWorker: start video generation.");
+
 					await _videoService.CreateVideo(audioPath, subtitlesPath, GeneratedVideosBucket, objectName + ".mp4", token);
-					_logger.LogInformation("VideoMakerWorker generated a stupid brainrot shit");
+
+					_logger.LogInformation("VideoMakerWorker: end video generation.");
 
 					dbContext = _dbContextFactory.CreateDbContext();
 
