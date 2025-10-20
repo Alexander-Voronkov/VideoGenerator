@@ -474,6 +474,6 @@ public class VideoProcessingService : IVideoProcessingService
         if (lastProgress != 0 && Math.Abs(args.Percent - lastProgress) <= 5) return;
         lastProgress = args.Percent;
 
-        _logger.LogInformation(message: $"Generating - {args.Percent}%");
+        Console.WriteLine($"Generating - {args.Percent}%");
     }
 }
