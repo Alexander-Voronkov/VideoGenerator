@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.VM_SECRET_KEY }}
           source: "."
-          target: "~/videogenerator-src"
+          target: "~/videogeneratorworker-src"
 
       - name: Rebuild and restart container on remote server
         uses: appleboy/ssh-action@v1.1.0
@@ -29,25 +29,25 @@ jobs:
           port: 22
           script: |
             echo "🚀 Starting deploy on $(hostname)"
-            cd ~/videogenerator-src
+            cd ~/videogeneratorworker-src
 
             echo "🔨 Rebuilding Docker image..."
-            sudo docker build -t videogenerator:latest .
+            sudo docker build -t videogeneratorworker:latest .
 
-            if sudo docker ps -q -f name=videogenerator > /dev/null; then
+            if sudo docker ps -q -f name=videogeneratorworker > /dev/null; then
               echo "♻️ Restarting existing container..."
-              sudo docker stop videogenerator
-              sudo docker rm videogenerator
+              sudo docker stop videogeneratorworker
+              sudo docker rm videogeneratorworker
             else
               echo "🆕 No existing container found, creating new one..."
             fi
 
             echo "🔥 Running updated container..."
             sudo docker run -d \
-              --name videogenerator \
+              --name videogeneratorworker \
               --restart always \
               --network npmnetwork \
               -e DOTNET_ENVIRONMENT=Production \
-              videogenerator:latest
+              videogeneratorworker:latest
 
             echo "✅ Deploy complete!"
