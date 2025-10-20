@@ -90,7 +90,6 @@ public class VideoMakerWorker : BackgroundService
 					var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
 						.FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
 
-
 					if (!ttsExists)
 					{
 						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, pendingText.SexType, language);
