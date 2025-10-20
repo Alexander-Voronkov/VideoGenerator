@@ -16,14 +16,12 @@ public class VideoMakerWorker : BackgroundService
 {
     private readonly ILogger _logger;
 	private readonly IVideoGenerationService _videoService;
-	private readonly ISubtitleGeneratorService _subtitleGeneratorService;
 	private readonly ITextToSpeechService _textToSpeechService;
 	private readonly IAssConvertService _assConvertService;
 	private readonly IMinioBlobService _minioBlobService;
-	private readonly MinioBlobConfig _minioBlobConfig;
 	private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 
-	private const int JobIntervalInMinutes = 600;
+	private const int JobIntervalInMinutes = 1;
 
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string AssSubtitlesBucket = "ass-subtitles";
@@ -42,11 +40,9 @@ public class VideoMakerWorker : BackgroundService
     {
         _logger = logger;
         _videoService = videoService;
-        _subtitleGeneratorService = subtitleGeneratorService;
         _textToSpeechService = textToSpeechService;
         _assConvertService = assConvertService;
 		_minioBlobService = minioBlobService;
-		_minioBlobConfig = minioBlobConfig.Value;
 		_dbContextFactory = dbContextFactory;
     }
 
@@ -133,9 +129,6 @@ public class VideoMakerWorker : BackgroundService
 					await dbContext.SaveChangesAsync(token);
 					dbContext.Dispose();
 
-					var audioPath = $"http://{_minioBlobConfig.Host}/{ttsBlobPath}";
-					var subtitlesPath = $"http://{_minioBlobConfig.Host}/{assBlobPath}";
-
 					_logger.LogInformation("VideoMakerWorker: start video generation.");
 
 					await _videoService.CreateVideo(objectName, token);
@@ -148,7 +141,7 @@ public class VideoMakerWorker : BackgroundService
 					dbContext.Set<GeneratedVideo>().Add(new()
 					{
 						GenerationQueueId = pendingText.Id,
-						BlobPath = $"{GeneratedVideosBucket}/{objectName}.mp4",
+						BlobPath = $"{GeneratedVideosBucket}/{objectName}",
 						UploadingStatus = UploadingStatus.NotUploaded,
 					});
 
