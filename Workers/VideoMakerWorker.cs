@@ -145,6 +145,7 @@ public class VideoMakerWorker : BackgroundService
 					{
 						GenerationQueueId = pendingText.Id,
 						BlobPath = $"{GeneratedVideosBucket}/{objectName}.mp4",
+						UploadingStatus = UploadingStatus.NotUploaded,
 					});
 
 					pendingText.Status = GenerationStatus.Processed;

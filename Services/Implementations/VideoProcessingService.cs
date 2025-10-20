@@ -327,8 +327,10 @@ public class VideoProcessingService : IVideoProcessingService
 				conversion.OnProgress += Conversion_OnProgress;
 
 				var result = await conversion
-					//.UseHardwareAcceleration("cuda", "h264_cuvid", "h264_nvenc")
-					.Start(token);
+#if DEBUG
+                    .UseHardwareAcceleration("cuda", "h264_cuvid", "h264_nvenc")
+#endif
+                    .Start(token);
 
 				totalDuration += (int)result.Duration.TotalSeconds;
 				resultVideos.Add(outputFile);
