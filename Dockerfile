@@ -6,7 +6,7 @@ RUN dotnet restore
 
 COPY ./Fonts/ /usr/local/share/fonts/truetype/
 
-RUN apt install -y fontconfig
+RUN apt update && apt install -y fontconfig
 
 RUN fc-cache -fv
 
