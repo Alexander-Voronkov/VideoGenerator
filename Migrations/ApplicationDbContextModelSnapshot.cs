@@ -55,6 +55,12 @@ namespace VideoGenerator.Migrations
                     b.Property<string>("GenerationQueueId")
                         .HasColumnType("text");
 
+                    b.Property<int>("PartNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalParts")
+                        .HasColumnType("integer");
+
                     b.Property<int>("UploadingStatus")
                         .HasColumnType("integer");
 
@@ -89,6 +95,9 @@ namespace VideoGenerator.Migrations
                     b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("YoutubePlaylistId")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 

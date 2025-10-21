@@ -66,7 +66,7 @@ public class VideoMakerWorker : BackgroundService
 				var dbContext = _dbContextFactory.CreateDbContext();
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
-					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+					.Where(x => x.Status == GenerationStatus.ReadyToProcess && x.Id == "1nbq3x2")
 					.FirstOrDefaultAsync(token);
 
 				pendingText.Status = GenerationStatus.Processing;
@@ -130,19 +130,25 @@ public class VideoMakerWorker : BackgroundService
 
 					_logger.LogInformation("VideoMakerWorker: start video generation.");
 
-					await _videoService.CreateVideo(objectName, token);
+					var objectNames = await _videoService.CreateVideo(objectName, token);
 
 					_logger.LogInformation("VideoMakerWorker: end video generation.");
 
 					dbContext = _dbContextFactory.CreateDbContext();
 
 					dbContext.Attach(pendingText);
-					dbContext.Set<GeneratedVideo>().Add(new()
+
+					for (int i = 0; i < objectNames.Length; i++)
 					{
-						GenerationQueueId = pendingText.Id,
-						BlobPath = $"{GeneratedVideosBucket}/{objectName}",
-						UploadingStatus = UploadingStatus.NotUploaded,
-					});
+						dbContext.Set<GeneratedVideo>().Add(new()
+						{
+							GenerationQueueId = pendingText.Id,
+							BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
+							UploadingStatus = UploadingStatus.NotUploaded,
+							PartNumber = i + 1,
+							TotalParts = objectNames.Length
+						});
+					}
 
 					pendingText.Status = GenerationStatus.Processed;
 

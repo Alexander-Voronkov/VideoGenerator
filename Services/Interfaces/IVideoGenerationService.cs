@@ -2,7 +2,7 @@
 
 public interface IVideoGenerationService
 {
-    Task CreateVideo(
+    Task<string[]> CreateVideo(
         string objectName,
         CancellationToken token = default);
 }

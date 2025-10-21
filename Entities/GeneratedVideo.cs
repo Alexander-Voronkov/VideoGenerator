@@ -8,4 +8,7 @@ public class GeneratedVideo
 
 	public string GenerationQueueId { get; set; }
 	public GenerationQueueItem GenerationQueueItem { get; set; }
+	
+	public int PartNumber { get; set; }
+	public int TotalParts { get; set; }
 }

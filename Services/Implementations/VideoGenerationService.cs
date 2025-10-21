@@ -1,11 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Telegram.Bot.Types;
 using VideoGenerator.Configs;
 using VideoGenerator.Entities;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 using Xabe.FFmpeg;
+using File = System.IO.File;
 
 namespace VideoGenerator.Services.Implementations;
 
@@ -14,6 +16,7 @@ public class VideoGenerationService : IVideoGenerationService
     private readonly IVideoProcessingService _videoService;
     private readonly IMinioBlobService _minioBlobService;
 	private readonly MinioBlobConfig _minioBlobConfig;
+	private readonly RedditStoryConfig _redditStoryConfig;
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 	private readonly ILogger _logger;
 
@@ -28,17 +31,19 @@ public class VideoGenerationService : IVideoGenerationService
         IVideoProcessingService videoService,
         IMinioBlobService minioBlobService,
 		IOptions<MinioBlobConfig> minioBlobConfig,
+        IOptions<RedditStoryConfig> redditStoryConfig,
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
 		ILogger<VideoGenerationService> logger)
     {
         _videoService = videoService;
         _minioBlobService = minioBlobService;
         _minioBlobConfig = minioBlobConfig.Value;
+		_redditStoryConfig = redditStoryConfig.Value;
 		_dbContextFactory = dbContextFactory;
 		_logger = logger;
 	}
 
-	public async Task CreateVideo(
+	public async Task<string[]> CreateVideo(
         string objectName, 
         CancellationToken token = default)
 	{
@@ -50,54 +55,193 @@ public class VideoGenerationService : IVideoGenerationService
 			await _minioBlobService.DownloadAsync(TtsSubtitlesBucket, objectName, str, token);
 		}
 
-		var mediaInfo = await FFmpeg.GetMediaInfo(tempAudioPath);
+		var mediaInfo = await FFmpeg.GetMediaInfo(tempAudioPath, token);
 
+		var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
+		var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
+        var tempVideoWithNarration = await AttachNarration(objectName, tempVideoWithMusic, tempAudioPath, token);
+        var tempVideoWithSubtitles = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
+
+		
+		var generatedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempVideoWithSubtitles, token);
+		var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
+
+        List<string> temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
+        List<string> objectNames = [];
+		if (partsCount > 1)
+		{
+			_logger.LogInformation("Splitting video to {Parts} of {Duration} seconds",  partsCount, partLength);
+			
+			var (videos,_) = await _videoService.SplitEqualAsync(
+				TimeSpan.FromSeconds(partLength), 
+				tempVideoWithSubtitles, 
+				Path.GetTempPath(), 
+				token);
+
+			var i = 1;
+			foreach (var part in videos)
+			{
+				var partObjectName = objectName + "_" + i;
+				await UploadVideo(partObjectName, part, token);
+				
+				temp.Add(part);
+				objectNames.Add(partObjectName);
+				i++;
+			}
+		}
+		else
+		{
+			objectNames = [objectName];
+			await UploadVideo(objectName, tempVideoWithSubtitles, token);
+		}
+
+		_logger.LogInformation("Started uploading video");
+
+		
+		TryDelete(temp.ToArray());
+
+		_logger.LogInformation("End uploading video");
+		
+		return objectNames.ToArray();
+	}
+
+	private async Task UploadVideo(string objectName, string videoPath, CancellationToken token = default)
+	{
+		var videoExists = await _minioBlobService.ExistsAsync(VideosBucket, objectName, token);
+
+		if (!videoExists)
+		{
+			await using var stream = File.OpenRead(videoPath);
+			await _minioBlobService.UploadAsync(
+				VideosBucket,
+				objectName,
+				stream,
+				"video/mp4",
+				token);
+		}
+	}
+
+	private async Task<string> AttachSubtitles(string objectName, string backgroundVideoPath, TimeSpan duration, CancellationToken token)
+	{
+		var tempVideoWithSubtitles = Path.Combine(Path.GetTempPath(), $"merged_with_subtitles_{objectName}.mp4");
+		if (!File.Exists(tempVideoWithSubtitles))
+		{
+			_logger.LogInformation("VideoGeneration: Started add subtitles");
+			var tempSubtitlePath = Path.Combine(Path.GetTempPath(), $"subtitles_{Path.GetFileNameWithoutExtension(objectName)}.ass");
+			await using (var str = File.Open(tempSubtitlePath, FileMode.OpenOrCreate))
+			{
+				await _minioBlobService.DownloadAsync(AssSubtitlesBucket, objectName, str, token);
+			}
+
+			await _videoService.AddSubtitlesAsync(backgroundVideoPath, tempVideoWithSubtitles, assPath: tempSubtitlePath, token: token);
+
+			TryDelete(tempSubtitlePath);
+			_logger.LogInformation("VideoGeneration: End add subtitles");
+		}
+		
+		return tempVideoWithSubtitles;
+	}
+
+	private async Task<string> AttachNarration(string objectName, string backgroundVideoPath, string narrationPath, CancellationToken token)
+	{
+		var tempVideoWithNarration = Path.Combine(Path.GetTempPath(), $"merged_with_sound_{objectName}.mp4");
+		if (!File.Exists(tempVideoWithNarration))
+		{
+			_logger.LogInformation("VideoGeneration: Started attach audio");
+			await _videoService.AttachAudioAsync(narrationPath, backgroundVideoPath, tempVideoWithNarration, token: token);
+			_logger.LogInformation("VideoGeneration: End attach audio");
+		}
+		
+		return tempVideoWithNarration;
+	}
+
+	private async Task<string> PrepareBackgroundMusic(string objectName, string backgroundVideoPath,  TimeSpan duration, CancellationToken token)
+	{
+		var loopedMusicPath = Path.Combine(Path.GetTempPath(), $"music_{objectName}.mp3");
+		var videoWithMusic = Path.Combine(Path.GetTempPath(), $"merged_with_music_{objectName}.mp4");
+		
+		if (!File.Exists(loopedMusicPath))
+		{ 
+			_logger.LogInformation($"{nameof(VideoGenerationService)}: start searching for available background music.");
+
+			var availableMusic = await _minioBlobService.ListAsync(BackgroundMusicBucket, token);
+			var tempBackgroundMusicPath = Path.Combine(Path.GetTempPath(), $"background-music-temp-{objectName}.mp3");
+
+			await using (var str = File.Open(tempBackgroundMusicPath, FileMode.OpenOrCreate))
+			{
+				await _minioBlobService.DownloadAsync(BackgroundMusicBucket, availableMusic.OrderBy(x => Random.Shared.Next()).First(), str, token);
+			}
+
+			_logger.LogInformation($"{nameof(VideoGenerationService)}: end searching for available background music.");
+
+			_logger.LogInformation("VideoGeneration: Started looping music for video");
+
+			await _videoService.LoopForAsync(tempBackgroundMusicPath, loopedMusicPath, duration, token);
+
+			TryDelete(tempBackgroundMusicPath);
+			_logger.LogInformation("VideoGeneration: End looping music for video");
+		}
+		
+		if (!File.Exists(videoWithMusic))
+		{
+			_logger.LogInformation("VideoGeneration: Started attach music");
+
+			await _videoService.AttachAudioAsync(
+				loopedMusicPath, 
+				backgroundVideoPath, 
+				videoWithMusic, 
+				volume: 0.01F, 
+				overrideOriginalAudio: true, 
+				token: token);
+
+			_logger.LogInformation("VideoGeneration: End attach music");
+		}
+		
+		return videoWithMusic;
+	}
+
+	private async Task<string> PrepareBackgroundVideo(string objectName, TimeSpan duration, CancellationToken token)
+	{
+		var backgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}.mp4");
+		var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
+		
+		await using var dbContext = await _dbContextFactory.CreateDbContextAsync(token);
 		var selectedVideos = new List<SplitHistory>();
 
-		var dbContext = _dbContextFactory.CreateDbContext();
-
-		for (double i = 0; i < mediaInfo.Duration.TotalMinutes;)
+		for (double i = 0; i < duration.TotalMinutes;)
 		{
 			var video = await dbContext.Set<SplitHistory>()
 				.OrderBy(x => x.LastTookPartAt == null)
 				.ThenBy(x => x.LastTookPartAt)
 				.ThenBy(x => x.Duration)
-				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i 
-                    || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= mediaInfo.Duration.TotalMinutes - i), token);
+				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= duration.TotalMinutes - i 
+				                          || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= duration.TotalMinutes - i), token);
 
 			await dbContext.Set<SplitHistory>()
 				.Where(x => x.Id == video.Id)
 				.ExecuteUpdateAsync(x => x.SetProperty(q => q.LastTookPartAt, DateTime.UtcNow), token);
 
-			if (video != null)
+			if (video == null)
 			{
-				selectedVideos.Add(video);
-                i += video.Duration.TotalMinutes;
+				continue;
 			}
+			
+			selectedVideos.Add(video);
+			i += video.Duration.TotalMinutes;
 		}
-
-		dbContext.Dispose();
-
-		var tempBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}.mp4");
-        var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
-        var tempLoopedMusic = Path.Combine(Path.GetTempPath(), $"music_{objectName}.mp3");
-        var tempVideoWithMusic = Path.Combine(Path.GetTempPath(), $"merged_with_music_{objectName}.mp4");
-        var tempVideoWithNarration = Path.Combine(Path.GetTempPath(), $"merged_with_sound_{objectName}.mp4");
-        var tempVideoWithSubtitles = Path.Combine(Path.GetTempPath(), $"merged_with_subtitles_{objectName}.mp4");
-
-		if (!File.Exists(tempBackgroundVideoPath))
+		
+		if (!File.Exists(backgroundVideoPath))
 		{
 			_logger.LogInformation("VideoGeneration: Started merging");
 			if (selectedVideos.Count == 1)
 			{
-				await using (var stream = File.Open(tempBackgroundVideoPath, FileMode.OpenOrCreate))
-				{
-					await _minioBlobService.DownloadAsync(
-						SplittedVideosBucket,
-						Path.GetFileName(selectedVideos.Single().BlobPath),
-						stream,
-						token);
-				}
+				await using var stream = File.Open(backgroundVideoPath, FileMode.OpenOrCreate);
+				
+				await _minioBlobService.DownloadAsync(
+					SplittedVideosBucket,
+					Path.GetFileName(selectedVideos.Single().BlobPath),
+					stream,
+					token);
 			}
 			else
 			{
@@ -121,7 +265,7 @@ public class VideoGenerationService : IVideoGenerationService
 
 				await _videoService.MergeVideosAsync(
 					tempSelectedVideos.ToArray(),
-					tempBackgroundVideoPath,
+					backgroundVideoPath,
 					token);
 
 				foreach (var tempPath in tempSelectedVideos)
@@ -130,100 +274,17 @@ public class VideoGenerationService : IVideoGenerationService
 				}
 			}
 			_logger.LogInformation("VideoGeneration: End merging");
-		}
-
-        var tempMergedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempBackgroundVideoPath);
-
-		if (!File.Exists(tempTrimmedBackgroundVideoPath))
-		{
-			_logger.LogInformation("Started splitting");
-			await _videoService.SplitAtAsync(tempBackgroundVideoPath, tempTrimmedBackgroundVideoPath, TimeSpan.Zero, mediaInfo.Duration, token);
-		}
-
-		if (!File.Exists(tempLoopedMusic))
-		{ 
-			_logger.LogInformation($"{nameof(VideoGenerationService)}: start searching for available background music.");
-
-			var availableMusic = await _minioBlobService.ListAsync(BackgroundMusicBucket, token);
-			var tempBackgroundMusicPath = Path.Combine(Path.GetTempPath(), $"background-music-temp-{objectName}.mp3");
-
-			await using (var str = File.Open(tempBackgroundMusicPath, FileMode.OpenOrCreate))
+			
+			if (!File.Exists(tempTrimmedBackgroundVideoPath))
 			{
-				await _minioBlobService.DownloadAsync(BackgroundMusicBucket, availableMusic.OrderBy(x => Random.Shared.Next()).First(), str, token);
+				_logger.LogInformation("Started splitting");
+				await _videoService.SplitAtAsync(backgroundVideoPath, tempTrimmedBackgroundVideoPath, TimeSpan.Zero, duration, token);
 			}
-
-			_logger.LogInformation($"{nameof(VideoGenerationService)}: end searching for available background music.");
-
-			_logger.LogInformation("VideoGeneration: Started looping music for video");
-
-			await _videoService.LoopForAsync(tempBackgroundMusicPath, tempLoopedMusic, mediaInfo.Duration, token);
-
-			TryDelete(tempBackgroundMusicPath);
-			_logger.LogInformation("VideoGeneration: End looping music for video");
+			
+			TryDelete(backgroundVideoPath);
 		}
-
-		if (!File.Exists(tempVideoWithMusic))
-		{
-			_logger.LogInformation("VideoGeneration: Started attach music");
-
-			await _videoService.AttachAudioAsync(
-				tempLoopedMusic, 
-				tempTrimmedBackgroundVideoPath, 
-				tempVideoWithMusic, 
-				volume: 0.01F, 
-				overrideOriginalAudio: true, 
-				token: token);
-
-			_logger.LogInformation("VideoGeneration: End attach music");
-		}
-
-		if (!File.Exists(tempVideoWithNarration))
-		{
-			_logger.LogInformation("VideoGeneration: Started attach audio");
-			await _videoService.AttachAudioAsync(tempAudioPath, tempVideoWithMusic, tempVideoWithNarration, token: token);
-			_logger.LogInformation("VideoGeneration: End attach audio");
-		}
-
-		if (!File.Exists(tempVideoWithSubtitles))
-		{
-			_logger.LogInformation("VideoGeneration: Started add subtitles");
-			var tempSubtitlePath = Path.Combine(Path.GetTempPath(), $"subtitles_{Path.GetFileNameWithoutExtension(objectName)}.ass");
-			await using (var str = File.Open(tempSubtitlePath, FileMode.OpenOrCreate))
-			{
-				await _minioBlobService.DownloadAsync(AssSubtitlesBucket, objectName, str, token);
-			}
-
-			await _videoService.AddSubtitlesAsync(tempVideoWithNarration, tempVideoWithSubtitles, assPath: tempSubtitlePath, token: token);
-
-			TryDelete(tempSubtitlePath);
-			_logger.LogInformation("VideoGeneration: End add subtitles");
-		}
-
-		_logger.LogInformation("Started uploading video");
-
-		var videoExists = await _minioBlobService.ExistsAsync(VideosBucket, objectName, token);
-
-		if (!videoExists)
-		{
-			await using (var stream = File.OpenRead(tempVideoWithSubtitles)) {
-				await _minioBlobService.UploadAsync(
-				VideosBucket,
-				objectName,
-				stream,
-				"video/mp4",
-				token);
-			}
-		}
-
-		TryDelete(tempBackgroundVideoPath);
-		TryDelete(tempTrimmedBackgroundVideoPath);
-		TryDelete(tempVideoWithNarration);
-		TryDelete(tempVideoWithSubtitles);
-		TryDelete(tempLoopedMusic);
-		TryDelete(tempVideoWithMusic);
-		TryDelete(tempAudioPath);
-
-		_logger.LogInformation("End uploading video");
+		
+		return tempTrimmedBackgroundVideoPath;
 	}
 
 	private void TryDelete(string path)
@@ -236,5 +297,29 @@ public class VideoGenerationService : IVideoGenerationService
 		{
 			_logger.LogError("Failed to clear temp file: {Message}", ex.Message);
 		}
+	}
+
+	private void TryDelete(params string[] paths)
+	{
+		foreach (var path in paths)
+		{
+			TryDelete(path);
+		}
+	}
+
+	private (int partsCount, double partLength) CalculatePartsCount(TimeSpan videoDuration, double targetLengthInSeconds)
+	{
+		var videoDurationInSeconds = videoDuration.TotalSeconds;
+		var partsCount = (int)Math.Ceiling(videoDurationInSeconds / targetLengthInSeconds);
+		
+		double partLength = videoDurationInSeconds / partsCount;
+		
+		if (partLength < targetLengthInSeconds)
+		{
+			partsCount--;
+			partLength = videoDurationInSeconds / partsCount;
+		}
+
+		return (partsCount, partLength);
 	}
 }

@@ -49,7 +49,8 @@ public static partial class Extensions
             .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
             .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
             .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
-            .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"));
+            .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
+            .Configure<RedditStoryConfig>(hostContext.Configuration.GetSection("RedditStoryConfig"));
 
 			// add hosted services
 
