@@ -300,7 +300,7 @@ public class VideoProcessingService : IVideoProcessingService
         var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
         var totalDuration = 0;
 
-        int videoCount = (int)Math.Ceiling(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
+        int videoCount = (int)Math.Round(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
 
         var existingFiles = Enumerable.Range(0, videoCount)
             .Select(i =>

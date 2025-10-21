@@ -11,7 +11,6 @@ using Xabe.FFmpeg;
 using File = System.IO.File;
 
 namespace VideoGenerator.Services.Implementations;
-
 public class VideoGenerationService : IVideoGenerationService
 {
     private readonly IVideoProcessingService _videoService;
@@ -48,15 +47,7 @@ public class VideoGenerationService : IVideoGenerationService
         string objectName, 
         CancellationToken token = default)
 	{
-		// Get audio duration
-		var tempAudioPath = Path.Combine(Path.GetTempPath(), $"tts-subtitles-{objectName}.mp3");
-
-		await using (var str = File.Open(tempAudioPath, FileMode.OpenOrCreate))
-		{
-			await _minioBlobService.DownloadAsync(TtsSubtitlesBucket, objectName, str, token);
-		}
-
-		var mediaInfo = await FFmpeg.GetMediaInfo(tempAudioPath, token);
+		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
 		var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
 		var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
@@ -66,16 +57,37 @@ public class VideoGenerationService : IVideoGenerationService
 		
 		var generatedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempVideoWithSubtitles, token);
 		var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
+		
+        string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
+        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, partsCount, partLength, token);
+		
+		TryDelete(temp);
+		
+		return objectNames.ToArray();
+	}
 
-        List<string> temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
-        List<string> objectNames = [];
+	private async Task<(string audioPath, IMediaInfo mediaInfo)> DownloadNarration(string objectName, CancellationToken token = default)
+	{
+		var tempAudioPath = Path.Combine(Path.GetTempPath(), $"tts-subtitles-{objectName}.mp3");
+
+		await using var str = File.Open(tempAudioPath, FileMode.OpenOrCreate);
+		await _minioBlobService.DownloadAsync(TtsSubtitlesBucket, objectName, str, token);
+		
+		
+		return (tempAudioPath, await FFmpeg.GetMediaInfo(tempAudioPath, token));
+	}
+
+	private async Task<string[]> SplitAndUpload(string objectName, string videoPath, int partsCount, double partLength, CancellationToken token = default)
+	{
+		List<string> objectNames = [];
+		_logger.LogInformation("Started uploading video");
 		if (partsCount > 1)
 		{
 			_logger.LogInformation("Splitting video to {Parts} of {Duration} seconds",  partsCount, partLength);
 			
 			var (videos,_) = await _videoService.SplitEqualAsync(
 				TimeSpan.FromSeconds(partLength), 
-				tempVideoWithSubtitles, 
+				videoPath, 
 				Path.GetTempPath(), 
 				token);
 
@@ -85,24 +97,19 @@ public class VideoGenerationService : IVideoGenerationService
 				var partObjectName = objectName + "_" + i;
 				await UploadVideo(partObjectName, part, token);
 				
-				temp.Add(part);
 				objectNames.Add(partObjectName);
 				i++;
+				
+				TryDelete(part);
 			}
 		}
 		else
 		{
 			objectNames = [objectName];
-			await UploadVideo(objectName, tempVideoWithSubtitles, token);
+			await UploadVideo(objectName, videoPath, token);
 		}
-
-		_logger.LogInformation("Started uploading video");
-
 		
-		TryDelete(temp.ToArray());
-
 		_logger.LogInformation("End uploading video");
-		
 		return objectNames.ToArray();
 	}
 
