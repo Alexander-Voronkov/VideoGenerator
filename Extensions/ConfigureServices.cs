@@ -40,7 +40,6 @@ public static partial class Extensions
                 x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
             })
             .AddSingleton<IMinioBlobService, MinioBlobService>()
-            .AddSingleton<IOpenAiService, OpenAIService>()
             .AddSingleton<ISubtitleGeneratorService, SubtitleGeneratorService>()
             .AddSingleton<IVideoGenerationService, VideoGenerationService>()
             .AddSingleton<IVideoProcessingService, VideoProcessingService>()

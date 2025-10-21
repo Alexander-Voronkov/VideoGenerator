@@ -143,39 +143,54 @@ public class VideoProcessingService : IVideoProcessingService
 		return result.Duration;
     }
 
-    /// <summary>
-    /// Method for merging or concatenating some videos
-    /// </summary>
-    /// <param name="inputFilePaths">Paths to the input files.</param>
-    /// <param name="outputFilePath">Path to the ouputfile.</param>
-    /// <param name="token">Cancellation token.</param>
-    /// <returns></returns>
-    public async Task<TimeSpan> MergeVideosAsync(
-        string[] inputFilePaths,
-        string outputFilePath,
-        CancellationToken token = default)
-    {
-        if (inputFilePaths.Length <= 1)
-        {
-            throw new Exception("Not enough input files parameters.");
-        }
+	/// <summary>
+	/// Method for merging or concatenating some videos without re-encoding.
+	/// Requires that all input videos have the same codec, resolution, FPS, and container.
+	/// </summary>
+	/// <param name="inputFilePaths">Paths to the input files.</param>
+	/// <param name="outputFilePath">Path to the output file.</param>
+	/// <param name="token">Cancellation token.</param>
+	/// <returns></returns>
+	public async Task<TimeSpan> MergeVideosAsync(
+		string[] inputFilePaths,
+		string outputFilePath,
+		CancellationToken token = default)
+	{
+		if (inputFilePaths.Length <= 1)
+		{
+			throw new ArgumentException("Not enough input files to concatenate.", nameof(inputFilePaths));
+		}
 
-        var conversion = await FFmpeg.Conversions.FromSnippet.Concatenate(outputFilePath, inputFilePaths);
-        var result = await conversion.Start(token);
-		_logger.LogInformation($"Merging of videos took {result.Duration.TotalSeconds} seconds.");
+		var tempFileList = Path.Combine(Path.GetTempPath(), $"filelist_{Guid.NewGuid()}.txt");
+		await File.WriteAllLinesAsync(tempFileList, inputFilePaths.Select(p => $"file '{Path.GetFullPath(p).Replace("'", "'\\''")}'"), token);
 
-		return result.Duration;
-    }
+		try
+		{
+			var conversion = FFmpeg.Conversions.New()
+				.AddParameter($"-f concat -safe 0 -i \"{tempFileList}\" -c copy \"{outputFilePath}\"", ParameterPosition.PreInput);
 
-    /// <summary>
-    /// Method for placing a watermark on the video
-    /// </summary>
-    /// <param name="inputFilePath">Path to the input video file.</param>
-    /// <param name="watermarkPath">Path to the watermark image.</param>
-    /// <param name="outputFilePath">Path to the ouput video with the watermark.</param>
-    /// <param name="token">Cancellation token.</param>
-    /// <returns></returns>
-    public async Task<TimeSpan> PlaceWatermarkAsync(
+			var result = await conversion.Start(token);
+
+			_logger.LogInformation($"Merging of videos took {result.Duration.TotalSeconds} seconds.");
+
+			return result.Duration;
+		}
+		finally
+		{
+			if (File.Exists(tempFileList))
+				File.Delete(tempFileList);
+		}
+	}
+
+	/// <summary>
+	/// Method for placing a watermark on the video
+	/// </summary>
+	/// <param name="inputFilePath">Path to the input video file.</param>
+	/// <param name="watermarkPath">Path to the watermark image.</param>
+	/// <param name="outputFilePath">Path to the ouput video with the watermark.</param>
+	/// <param name="token">Cancellation token.</param>
+	/// <returns></returns>
+	public async Task<TimeSpan> PlaceWatermarkAsync(
         string inputFilePath,
         string watermarkPath,
         string outputFilePath,

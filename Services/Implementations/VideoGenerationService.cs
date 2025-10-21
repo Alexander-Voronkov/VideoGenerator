@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Telegram.Bot.Types;
+using System.Diagnostics;
 using VideoGenerator.Configs;
 using VideoGenerator.Entities;
 using VideoGenerator.Infrastructure;
@@ -211,7 +212,7 @@ public class VideoGenerationService : IVideoGenerationService
 		for (double i = 0; i < duration.TotalMinutes;)
 		{
 			var video = await dbContext.Set<SplitHistory>()
-				.OrderBy(x => x.LastTookPartAt == null)
+				.OrderBy(x => x.LastTookPartAt != null)
 				.ThenBy(x => x.LastTookPartAt)
 				.ThenBy(x => x.Duration)
 				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= duration.TotalMinutes - i 
