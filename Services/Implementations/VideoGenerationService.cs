@@ -215,9 +215,6 @@ public class VideoGenerationService : IVideoGenerationService
 			}
 		}
 
-		_logger.LogInformation("End uploading video");
-		throw new Exception("Goal");
-
 		TryDelete(tempBackgroundVideoPath);
 		TryDelete(tempTrimmedBackgroundVideoPath);
 		TryDelete(tempVideoWithNarration);

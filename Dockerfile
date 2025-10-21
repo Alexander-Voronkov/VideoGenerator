@@ -4,7 +4,11 @@ WORKDIR /app
 COPY *.csproj ./
 RUN dotnet restore
 
-COPY ./Fonts/*.ttf /usr/local/share/fonts
+COPY ./Fonts/ /usr/local/share/fonts/truetype/
+
+RUN apt install -y fontconfig
+
+RUN fc-cache -fv
 
 COPY . ./
 RUN dotnet publish -c Release -o /out

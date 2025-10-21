@@ -21,7 +21,7 @@ public class VideoMakerWorker : BackgroundService
 	private readonly IMinioBlobService _minioBlobService;
 	private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 
-	private const int JobIntervalInMinutes = 600;
+	private const int JobIntervalInMinutes = 15;
 
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string AssSubtitlesBucket = "ass-subtitles";
@@ -66,7 +66,6 @@ public class VideoMakerWorker : BackgroundService
 				var dbContext = _dbContextFactory.CreateDbContext();
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
-					.Where(x => x.Id == "1lynnsd")
 					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
 					.FirstOrDefaultAsync(token);
 
