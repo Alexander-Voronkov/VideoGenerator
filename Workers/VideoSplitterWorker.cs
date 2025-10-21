@@ -90,7 +90,7 @@ public class VideoSplitterWorker : BackgroundService
 						{
 							ParentBlobPath = $"{RawSourceVideoBucket}/{video}",
                             Duration = SplittedVideoDuration,
-							BlobPath = $"{SplittedVideosBucket}/{resultVideo}",
+							BlobPath = $"{SplittedVideosBucket}/{Path.GetFileName(resultVideo)}",
                             LastTookPartAt = null,
 						});
 					}
