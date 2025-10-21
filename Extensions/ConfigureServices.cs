@@ -40,7 +40,6 @@ public static partial class Extensions
                 x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
             })
             .AddSingleton<IMinioBlobService, MinioBlobService>()
-            .AddSingleton<IOpenAiService, OpenAIService>()
             .AddSingleton<ISubtitleGeneratorService, SubtitleGeneratorService>()
             .AddSingleton<IVideoGenerationService, VideoGenerationService>()
             .AddSingleton<IVideoProcessingService, VideoProcessingService>()
@@ -48,7 +47,6 @@ public static partial class Extensions
             .AddSingleton<ITextToSpeechService, ElevenLabsTtsService>()
             .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
             .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
-            .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
             .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"));
 
 			// add hosted services
