@@ -66,6 +66,7 @@ public class VideoMakerWorker : BackgroundService
 				var dbContext = _dbContextFactory.CreateDbContext();
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
+					//.Where(x => x.Id == "1nbq3x2")
 					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
 					.FirstOrDefaultAsync(token);
 
@@ -77,8 +78,6 @@ public class VideoMakerWorker : BackgroundService
 				try
 				{
 					var objectName = pendingText.Id + language;
-					var ttsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
-					var assBlobPath = $"{AssSubtitlesBucket}/{objectName}";
 
 					var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
 					var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
@@ -88,7 +87,8 @@ public class VideoMakerWorker : BackgroundService
 
 					if (!ttsExists)
 					{
-						var audioResult = await _textToSpeechService.CreateTextToSpeech(pendingText.Text, pendingText.SexType, language);
+						var text = pendingText.Title + "\n" + pendingText.Text;
+						var audioResult = await _textToSpeechService.CreateTextToSpeech(text, pendingText.SexType, language);
 						await using (var str = new MemoryStream(audioResult.Audio))
 						{
 							await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
@@ -130,7 +130,7 @@ public class VideoMakerWorker : BackgroundService
 
 					_logger.LogInformation("VideoMakerWorker: start video generation.");
 
-					var objectNames = await _videoService.CreateVideo(objectName, token);
+					var objectNames = await _videoService.CreateVideo(objectName, pendingText.Title, token);
 
 					_logger.LogInformation("VideoMakerWorker: end video generation.");
 

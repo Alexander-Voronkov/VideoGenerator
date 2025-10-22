@@ -29,8 +29,23 @@ public class AssConvertService : IAssConvertService
         return header + string.Join("\n", events);
     }
 
+    public string GenerateFromTimestampedLines(TimestampedLine[] lines, int? fontSize = null, int? position = null)
+    {
+        var header = BuildAssHeader();
+        var sb = new StringBuilder();
+
+        foreach (var line in lines)
+        {
+            var lineText = "{" + (fontSize != null ? $"\\fs{fontSize}" : "") + (position != null ? $"\\an{position}" : "") + "}" + line.Line;
+            sb.AppendLine($"Dialogue: 0,{ToAssTime(line.Start)},{ToAssTime(line.End)},Default,,0,0,0,,{lineText}");
+        }
+        
+        return header + string.Join("\n", sb.ToString());
+    }
+
     private string BuildAssHeader()
     {
+        
         return
             "[Script Info]\n" +
             "ScriptType: v4.00+\n" +
@@ -133,6 +148,15 @@ public class AssConvertService : IAssConvertService
         }
 
         return result.ToArray();
+    }
+    
+    private string ToAssTime(TimeSpan time)
+    {
+        var hours = (int)time.TotalHours;
+        var minutes = time.Minutes;
+        var seconds = time.Seconds;
+        var centiseconds = time.Milliseconds / 10;
+        return $"{hours}:{minutes:D2}:{seconds:D2}.{centiseconds:D2}";
     }
 
     private string BuildLineContent(List<(string word, double startTime, double endTime)> words)

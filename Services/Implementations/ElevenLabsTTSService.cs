@@ -49,6 +49,7 @@ public class ElevenLabsTtsService: ITextToSpeechService
 			    retryCount: _elevenLabsConfig.ApiKeys.Length - 1,
 			    onRetryAsync: async (exception, retryCount, context) =>
 			    {
+				    // wow, such free solution
 				    Console.WriteLine($"❗ Ошибка: {exception.Message}, попытка {retryCount}");
 
 				    _currentKeyIndex = retryCount % _elevenLabsConfig.ApiKeys.Length;
@@ -72,8 +73,7 @@ public class ElevenLabsTtsService: ITextToSpeechService
         var sb = new StringBuilder(rawText);
 
         sb.Replace("--", "-");
-        sb.Replace("/n/n", " ");
-        sb.Replace("/n", " ");
+        sb.Replace("\n\n", "\n");
 
         return sb.ToString();
     }

@@ -18,6 +18,7 @@ public class VideoGenerationService : IVideoGenerationService
 	private readonly MinioBlobConfig _minioBlobConfig;
 	private readonly RedditStoryConfig _redditStoryConfig;
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
+    private readonly IAssConvertService  _assService;
 	private readonly ILogger _logger;
 
 	private const string BackgroundMusicBucket = "background-music";
@@ -33,18 +34,21 @@ public class VideoGenerationService : IVideoGenerationService
 		IOptions<MinioBlobConfig> minioBlobConfig,
         IOptions<RedditStoryConfig> redditStoryConfig,
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
-		ILogger<VideoGenerationService> logger)
+		ILogger<VideoGenerationService> logger,
+        IAssConvertService assService)
     {
         _videoService = videoService;
         _minioBlobService = minioBlobService;
         _minioBlobConfig = minioBlobConfig.Value;
 		_redditStoryConfig = redditStoryConfig.Value;
 		_dbContextFactory = dbContextFactory;
+		_assService = assService;
 		_logger = logger;
-	}
+    }
 
 	public async Task<string[]> CreateVideo(
-        string objectName, 
+        string objectName,
+        string title,
         CancellationToken token = default)
 	{
 		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
@@ -53,13 +57,12 @@ public class VideoGenerationService : IVideoGenerationService
 		var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
         var tempVideoWithNarration = await AttachNarration(objectName, tempVideoWithMusic, tempAudioPath, token);
         var tempVideoWithSubtitles = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
-
 		
 		var generatedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempVideoWithSubtitles, token);
 		var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
 		
         string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
-        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, partsCount, partLength, token);
+        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, title, partsCount, partLength, token);
 		
 		TryDelete(temp);
 		
@@ -70,14 +73,14 @@ public class VideoGenerationService : IVideoGenerationService
 	{
 		var tempAudioPath = Path.Combine(Path.GetTempPath(), $"tts-subtitles-{objectName}.mp3");
 
-		await using var str = File.Open(tempAudioPath, FileMode.OpenOrCreate);
+		await using var str = File.Open(tempAudioPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
 		await _minioBlobService.DownloadAsync(TtsSubtitlesBucket, objectName, str, token);
 		
 		
 		return (tempAudioPath, await FFmpeg.GetMediaInfo(tempAudioPath, token));
 	}
 
-	private async Task<string[]> SplitAndUpload(string objectName, string videoPath, int partsCount, double partLength, CancellationToken token = default)
+	private async Task<string[]> SplitAndUpload(string objectName, string videoPath, string title, int partsCount, double partLength, CancellationToken token = default)
 	{
 		List<string> objectNames = [];
 		_logger.LogInformation("Started uploading video");
@@ -95,12 +98,14 @@ public class VideoGenerationService : IVideoGenerationService
 			foreach (var part in videos)
 			{
 				var partObjectName = objectName + "_" + i;
-				await UploadVideo(partObjectName, part, token);
+				
+				var path = await AttachTitle(partObjectName, part, title, i, partsCount, token );
+				await UploadVideo(partObjectName, path, token);
 				
 				objectNames.Add(partObjectName);
 				i++;
 				
-				TryDelete(part);
+				TryDelete(part, path);
 			}
 		}
 		else
@@ -111,6 +116,25 @@ public class VideoGenerationService : IVideoGenerationService
 		
 		_logger.LogInformation("End uploading video");
 		return objectNames.ToArray();
+	}
+
+	private async Task<string> AttachTitle(string objectName, string videoPath, string title, int part, int partsCount,
+		CancellationToken token = default)
+	{
+		var mediaInfo = await FFmpeg.GetMediaInfo(videoPath, token);
+		
+		var tempPath = Path.Combine(Path.GetTempPath(), $"entitled-{objectName}.mp4");
+		var tempTextPath = Path.Combine(Path.GetTempPath(), $"title-{objectName}.ass");
+		
+		var line = new TimestampedLine($"{title}" + (partsCount > 1 ? $" Part {part}/{partsCount}" : ""), TimeSpan.Zero, mediaInfo.Duration);
+		var subs = _assService.GenerateFromTimestampedLines([line], position: 8);
+		await File.WriteAllTextAsync(tempTextPath, subs, token);
+		
+		await _videoService.AddSubtitlesAsync(videoPath, tempPath, null, tempTextPath, token);
+		
+		TryDelete(tempTextPath);
+		
+		return tempPath;
 	}
 
 	private async Task UploadVideo(string objectName, string videoPath, CancellationToken token = default)
@@ -198,7 +222,7 @@ public class VideoGenerationService : IVideoGenerationService
 				loopedMusicPath, 
 				backgroundVideoPath, 
 				videoWithMusic, 
-				volume: 0.01F, 
+				volume: 0.25F, 
 				overrideOriginalAudio: true, 
 				token: token);
 
@@ -315,7 +339,7 @@ public class VideoGenerationService : IVideoGenerationService
 		}
 	}
 
-	private (int partsCount, double partLength) CalculatePartsCount(TimeSpan videoDuration, double targetLengthInSeconds)
+	private static (int partsCount, double partLength) CalculatePartsCount(TimeSpan videoDuration, double targetLengthInSeconds)
 	{
 		var videoDurationInSeconds = videoDuration.TotalSeconds;
 		var partsCount = (int)Math.Ceiling(videoDurationInSeconds / targetLengthInSeconds);

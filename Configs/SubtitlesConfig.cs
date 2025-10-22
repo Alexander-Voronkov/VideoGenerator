@@ -1,6 +1,6 @@
 ﻿namespace VideoGenerator.Configurations;
 
-public class AssStyle
+public record AssStyle
 {
     public string Name { get; set; }
     public string Fontname { get; set; }
