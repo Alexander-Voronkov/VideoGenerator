@@ -13,7 +13,7 @@ public interface IAssConvertService
 {
     string ConvertFromCrt(string[] crtSubtitles);
     
-    string ConvertFromTimestampedTranscript(TimestampedTranscriptCharacter[] characters, int maxCharactersPerLine = 25);
+    string ConvertFromTimestampedTranscript(TimestampedTranscriptCharacter[] characters, int maxCharactersPerLine = 25, bool enableHighlight = true);
     
     string GenerateFromTimestampedLines(TimestampedLine[] lines, int? fontSize = null, int? position = null);
 }

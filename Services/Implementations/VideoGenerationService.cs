@@ -127,7 +127,7 @@ public class VideoGenerationService : IVideoGenerationService
 		var tempTextPath = Path.Combine(Path.GetTempPath(), $"title-{objectName}.ass");
 		
 		var line = new TimestampedLine($"{title}" + (partsCount > 1 ? $" Part {part}/{partsCount}" : ""), TimeSpan.Zero, mediaInfo.Duration);
-		var subs = _assService.GenerateFromTimestampedLines([line], position: 8);
+		var subs = _assService.GenerateFromTimestampedLines([line], position: 8, fontSize: 60);
 		await File.WriteAllTextAsync(tempTextPath, subs, token);
 		
 		await _videoService.AddSubtitlesAsync(videoPath, tempPath, null, tempTextPath, token);
@@ -222,7 +222,7 @@ public class VideoGenerationService : IVideoGenerationService
 				loopedMusicPath, 
 				backgroundVideoPath, 
 				videoWithMusic, 
-				volume: 0.25F, 
+				volume: 0.15F, 
 				overrideOriginalAudio: true, 
 				token: token);
 

@@ -66,8 +66,8 @@ public class VideoMakerWorker : BackgroundService
 				var dbContext = _dbContextFactory.CreateDbContext();
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
-					//.Where(x => x.Id == "1nbq3x2")
-					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+					.Where(x => x.Id == "1nbq3x2")
+					//.Where(x => x.Status == GenerationStatus.ReadyToProcess)
 					.FirstOrDefaultAsync(token);
 
 				pendingText.Status = GenerationStatus.Processing;
@@ -115,7 +115,7 @@ public class VideoMakerWorker : BackgroundService
 
 					if (!assExists)
 					{
-						var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9);
+						var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9, false);
 						await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
 						{
 							await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);

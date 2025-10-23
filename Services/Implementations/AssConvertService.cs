@@ -22,10 +22,10 @@ public class AssConvertService : IAssConvertService
         return header + string.Join("\n", events);
     }
 
-    public string ConvertFromTimestampedTranscript(TimestampedTranscriptCharacter[] chars, int maxLineLength)
+    public string ConvertFromTimestampedTranscript(TimestampedTranscriptCharacter[] chars, int maxLineLength, bool enableHighlight = true)
     {
         var header = BuildAssHeader();
-        var events = ConvertTimestamped(chars, maxLineLength);
+        var events = ConvertTimestamped(chars, maxLineLength, enableHighlight);
         return header + string.Join("\n", events);
     }
 
@@ -45,7 +45,6 @@ public class AssConvertService : IAssConvertService
 
     private string BuildAssHeader()
     {
-        
         return
             "[Script Info]\n" +
             "ScriptType: v4.00+\n" +
@@ -92,7 +91,7 @@ public class AssConvertService : IAssConvertService
         return result.ToArray();
     }
 
-    private string[] ConvertTimestamped(TimestampedTranscriptCharacter[] chars, int maxLineLength)
+    private string[] ConvertTimestamped(TimestampedTranscriptCharacter[] chars, int maxLineLength, bool enableHighlight = true)
     {
         if (chars == null || chars.Length == 0)
             return Array.Empty<string>();
@@ -105,6 +104,7 @@ public class AssConvertService : IAssConvertService
         var currentLineWords = new List<(string word, double startTime, double endTime)>();
         var currentLineLength = 0;
         var previousLineContent = "";
+        var allLines = new List<(List<(string word, double startTime, double endTime)> words, string content, bool isNew)>();
 
         for (int i = 0; i < words.Count; i++)
         {
@@ -122,7 +122,7 @@ public class AssConvertService : IAssConvertService
                 var lineContent = BuildLineContent(currentLineWords);
                 var isNewLineContent = lineContent.Trim() != previousLineContent.Trim();
                 
-                CreateSubtitleEventsForLine(result, currentLineWords, lineContent, isNewLineContent, words, i);
+                allLines.Add((new List<(string word, double startTime, double endTime)>(currentLineWords), lineContent, isNewLineContent));
                 
                 previousLineContent = lineContent;
                 
@@ -144,7 +144,17 @@ public class AssConvertService : IAssConvertService
         {
             var lineContent = BuildLineContent(currentLineWords);
             var isNewLineContent = lineContent.Trim() != previousLineContent.Trim();
-            CreateSubtitleEventsForLine(result, currentLineWords, lineContent, isNewLineContent, words, words.Count);
+            allLines.Add((new List<(string word, double startTime, double endTime)>(currentLineWords), lineContent, isNewLineContent));
+        }
+
+        // Now create events based on mode
+        if (enableHighlight)
+        {
+            CreateHighlightedEvents(result, allLines, words);
+        }
+        else
+        {
+            CreateSimpleEvents(result, allLines);
         }
 
         return result.ToArray();
@@ -202,6 +212,56 @@ public class AssConvertService : IAssConvertService
         }
 
         return words;
+    }
+
+    private void CreateHighlightedEvents(List<string> result, 
+                                        List<(List<(string word, double startTime, double endTime)> words, string content, bool isNew)> allLines,
+                                        List<(string word, double startTime, double endTime)> allWords)
+    {
+        var wordIndex = 0;
+        
+        for (int lineIndex = 0; lineIndex < allLines.Count; lineIndex++)
+        {
+            var line = allLines[lineIndex];
+            var nextLineStartIndex = wordIndex + line.words.Count;
+            
+            CreateSubtitleEventsForLine(result, line.words, line.content, line.isNew, allWords, nextLineStartIndex);
+            
+            wordIndex = nextLineStartIndex;
+        }
+    }
+
+    private void CreateSimpleEvents(List<string> result, 
+                                  List<(List<(string word, double startTime, double endTime)> words, string content, bool isNew)> allLines)
+    {
+        for (int i = 0; i < allLines.Count; i++)
+        {
+            var line = allLines[i];
+            
+            // Use the start time of the first word
+            var startTime = line.words[0].startTime;
+            
+            // End time should be when the next line starts, or the natural end of this line
+            double endTime;
+            if (i < allLines.Count - 1)
+            {
+                // End when next line starts
+                endTime = allLines[i + 1].words[0].startTime;
+            }
+            else
+            {
+                // Last line - use its natural end time
+                endTime = line.words[^1].endTime;
+            }
+            
+            var start = FormatTime(startTime);
+            var end = FormatTime(endTime);
+            
+            // Apply animation only for new lines (different content from previous line)
+            var animation = line.isNew ? _config.Animation : "";
+            
+            result.Add($"Dialogue: 0,{start},{end},Default,,0,0,0,,{animation}{line.content}");
+        }
     }
 
     private void CreateSubtitleEventsForLine(List<string> result, 
@@ -274,8 +334,6 @@ public class AssConvertService : IAssConvertService
         
         return string.Join(" ", highlightedWords);
     }
-
-    
     private static string NormalizeTime(string input)
     {
         input = input.Trim().Replace(",", ".");
