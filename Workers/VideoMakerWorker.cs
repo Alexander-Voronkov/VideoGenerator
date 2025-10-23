@@ -66,8 +66,8 @@ public class VideoMakerWorker : BackgroundService
 				var dbContext = _dbContextFactory.CreateDbContext();
 
 				var pendingText = await dbContext.Set<GenerationQueueItem>()
-					.Where(x => x.Id == "1nbq3x2")
-					//.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+					//.Where(x => x.Id == "1nbq3x2")
+					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
 					.FirstOrDefaultAsync(token);
 
 				pendingText.Status = GenerationStatus.Processing;
