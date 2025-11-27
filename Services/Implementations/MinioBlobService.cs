@@ -16,7 +16,7 @@ public class MinioBlobService : IMinioBlobService
         _minio = new MinioClient()
             .WithEndpoint(settings.Value.Host)
             .WithCredentials(settings.Value.AccessKey, settings.Value.SecretKey)
-            .WithSSL(false)
+            .WithSSL(settings.Value.Ssl)
             .Build();
     }
 

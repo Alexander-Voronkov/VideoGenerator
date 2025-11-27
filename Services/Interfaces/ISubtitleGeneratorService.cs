@@ -1,6 +1,8 @@
-﻿namespace VideoGenerator.Services.Interfaces;
+﻿using VideoGenerator.Entities;
+
+namespace VideoGenerator.Services.Interfaces;
 
 public interface ISubtitleGeneratorService
 {
-    Task GenerateSubtitles(string inputVideoPath, string outputSubtitlesPath, CancellationToken token = default);
+    Task GenerateSubtitles(GenerationQueueItem pendingItem, CancellationToken token = default);
 }

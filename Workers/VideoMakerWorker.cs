@@ -1,11 +1,7 @@
-﻿using ElevenLabs;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using System.Text;
-using System.Text.Json;
-using VideoGenerator.Configs;
+using Polly;
 using VideoGenerator.Entities;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
@@ -16,163 +12,111 @@ public class VideoMakerWorker : BackgroundService
 {
     private readonly ILogger _logger;
 	private readonly IVideoGenerationService _videoService;
-	private readonly ITextToSpeechService _textToSpeechService;
-	private readonly IAssConvertService _assConvertService;
-	private readonly IMinioBlobService _minioBlobService;
+	private readonly ISubtitleGeneratorService _subtitleGenerationService;
 	private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
 
 	private const int JobIntervalInMinutes = 15;
 
-	private const string TtsSubtitlesBucket = "tts-subtitles";
-	private const string AssSubtitlesBucket = "ass-subtitles";
 	private const string GeneratedVideosBucket = "generated-videos";
-	private const string BackgroundMusic = "background-music";
 
-    public VideoMakerWorker(
+	private const string Language = "en";
+
+	public VideoMakerWorker(
 		ILogger<VideoMakerWorker> logger, 
 		IVideoGenerationService videoService, 
 		ISubtitleGeneratorService subtitleGeneratorService,
-		ITextToSpeechService textToSpeechService,
-		IAssConvertService assConvertService,
-		IMinioBlobService minioBlobService,
-		IOptions<MinioBlobConfig> minioBlobConfig,
 		IDbContextFactory<ApplicationDbContext> dbContextFactory)
     {
         _logger = logger;
         _videoService = videoService;
-        _textToSpeechService = textToSpeechService;
-        _assConvertService = assConvertService;
-		_minioBlobService = minioBlobService;
 		_dbContextFactory = dbContextFactory;
+		_subtitleGenerationService = subtitleGeneratorService;
     }
 
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
         await Task.Delay(1, token);
-        
-		await _minioBlobService.MakeBucketPublicAsync(AssSubtitlesBucket, token);
-		await _minioBlobService.MakeBucketPublicAsync(TtsSubtitlesBucket, token);
-		await _minioBlobService.MakeBucketPublicAsync(GeneratedVideosBucket, token);
-		await _minioBlobService.MakeBucketPublicAsync(BackgroundMusic, token);
 
 		while (!token.IsCancellationRequested)
 		{
-			_logger.LogInformation("VideoMakerWorker started.");
+			_logger.LogInformation("{Worker} started.", nameof(VideoMakerWorker));
+
+			var queueItem = await GetRandomQueueItem(token);
 
 			try
 			{
-				const string language = "en";
-
-				var dbContext = _dbContextFactory.CreateDbContext();
-
-				var pendingText = await dbContext.Set<GenerationQueueItem>()
-					//.Where(x => x.Id == "1nbq3x2")
-					.Where(x => x.Status == GenerationStatus.ReadyToProcess)
-					.FirstOrDefaultAsync(token);
-
-				pendingText.Status = GenerationStatus.Processing;
-				await dbContext.SaveChangesAsync(token);
-
-				_logger.LogInformation("VideoMakerWorker: start subtitles generation.");
-
-				try
+				if (queueItem is null)
 				{
-					var objectName = pendingText.Id + language;
-
-					var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
-					var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
-
-					var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
-						.FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
-
-					if (!ttsExists)
-					{
-						var text = pendingText.Title + "\n" + pendingText.Text;
-						var audioResult = await _textToSpeechService.CreateTextToSpeech(text, pendingText.SexType, language);
-						await using (var str = new MemoryStream(audioResult.Audio))
-						{
-							await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
-						}
-
-						if (generatedSubtitle is not null)
-						{
-							generatedSubtitle.TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
-						}
-						else
-						{
-							generatedSubtitle = new()
-							{
-								TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}",
-								Timestamps = JsonSerializer.Serialize(audioResult.Timestamps)
-							};
-
-							dbContext = _dbContextFactory.CreateDbContext();
-
-							dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
-							await dbContext.SaveChangesAsync(token);
-						}
-					}
-
-					if (!assExists)
-					{
-						var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9, false);
-						await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
-						{
-							await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);
-						}
-						generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
-					}
-
-					_logger.LogInformation("VideoMakerWorker: end subtitles generation.");
-
-					await dbContext.SaveChangesAsync(token);
-					dbContext.Dispose();
-
-					_logger.LogInformation("VideoMakerWorker: start video generation.");
-
-					var objectNames = await _videoService.CreateVideo(objectName, pendingText.Title, token);
-
-					_logger.LogInformation("VideoMakerWorker: end video generation.");
-
-					dbContext = _dbContextFactory.CreateDbContext();
-
-					dbContext.Attach(pendingText);
-
-					for (int i = 0; i < objectNames.Length; i++)
-					{
-						dbContext.Set<GeneratedVideo>().Add(new()
-						{
-							GenerationQueueId = pendingText.Id,
-							BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
-							UploadingStatus = UploadingStatus.NotUploaded,
-							PartNumber = i + 1,
-							TotalParts = objectNames.Length
-						});
-					}
-
-					pendingText.Status = GenerationStatus.Processed;
-
-					await dbContext.SaveChangesAsync(token);
-
-					dbContext.Dispose();
+					throw new Exception("No pending reddit texts found in the queue.");
 				}
-				catch(Exception ex)
-				{
-					_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
 
-					dbContext = _dbContextFactory.CreateDbContext();
+				_logger.LogInformation("Processing brainrot id: {id}", queueItem.Id);
 
-					dbContext.Attach(pendingText);
-					pendingText.Status = GenerationStatus.ReadyToProcess;
+				var objectName = queueItem.Id + Language;
 
-					await dbContext.SaveChangesAsync(token);
-				}
+				await _subtitleGenerationService.GenerateSubtitles(queueItem, token);
+				var objectNames = await _videoService.CreateVideo(objectName, queueItem.Title, token);
+
+				await SaveVideosToUploadQueue(objectNames, queueItem, token);
 			}
-			catch (Exception ex)
+			catch(Exception ex)
 			{
 				_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
+
+				await RevertQueueItemStatusOnError(queueItem, token);
 			}
+
 			await Task.Delay(TimeSpan.FromMinutes(JobIntervalInMinutes), token);
 		}
     }
+
+	private async Task<GenerationQueueItem> GetRandomQueueItem(CancellationToken token = default)
+	{
+		await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
+		{
+			var queueItem = await dbContext.Set<GenerationQueueItem>()
+				.Where(x => x.Status == GenerationStatus.ReadyToProcess)
+				.FirstOrDefaultAsync(token);
+
+			queueItem.Status = GenerationStatus.Processing;
+
+			await dbContext.SaveChangesAsync(token);
+
+			return queueItem;
+		}
+	}
+
+	private async Task SaveVideosToUploadQueue(string[] objectNames, GenerationQueueItem queueItem, CancellationToken token = default)
+	{
+		await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
+		{
+			for (int i = 0; i < objectNames.Length; i++)
+			{
+				dbContext.Set<GeneratedVideo>().Add(new()
+				{
+					GenerationQueueId = queueItem.Id,
+					BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
+					UploadingStatus = UploadingStatus.NotUploaded,
+					PartNumber = i + 1,
+					TotalParts = objectNames.Length
+				});
+			}
+
+			dbContext.Attach(queueItem);
+
+			queueItem.Status = GenerationStatus.Processed;
+
+			await dbContext.SaveChangesAsync(token);
+		}
+	}
+
+	private async Task RevertQueueItemStatusOnError(GenerationQueueItem queueItem, CancellationToken token = default)
+	{
+		await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
+		{
+			dbContext.Attach(queueItem);
+			queueItem.Status = GenerationStatus.ReadyToProcess;
+			await dbContext.SaveChangesAsync(token);
+		}
+	}
 }

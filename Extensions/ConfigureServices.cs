@@ -45,7 +45,10 @@ public static partial class Extensions
             .AddSingleton<IVideoProcessingService, VideoProcessingService>()
             .AddSingleton<IAssConvertService, AssConvertService>()
             .AddSingleton<ITextToSpeechService, ElevenLabsTtsService>()
+            .AddSingleton<IPexelsService, PexelsService>()
+            .AddSingleton<IStockContentService, StockContentService>()
             .Configure<SubtitlesConfig>(hostContext.Configuration.GetSection("SubtitlesConfig"))
+            .Configure<PexelsStockContentConfig>(hostContext.Configuration.GetSection("PexelsStockContentConfig"))
             .Configure<MinioBlobConfig>(hostContext.Configuration.GetSection("MinioConfig"))
             .Configure<OpenAiConfig>(hostContext.Configuration.GetSection("OpenAiConfig"))
             .Configure<ElevenLabsConfig>(hostContext.Configuration.GetSection("ElevenLabsConfig"))
@@ -53,16 +56,26 @@ public static partial class Extensions
 
 			// add hosted services
 
-			var enabledWorkers = hostContext.Configuration.GetSection("Workers").Get<string[]>() ?? Array.Empty<string>();
+		var enabledWorkers = hostContext.Configuration.GetSection("Workers").Get<string[]>() ?? Array.Empty<string>();
 
-		    if (enabledWorkers.Contains(nameof(VideoMakerWorker)))
-            {
-                services.AddHostedService<VideoMakerWorker>();
-		    }
+        var workers = typeof(VideoMakerWorker).Assembly.GetTypes().Where(t => 
+            t.IsSubclassOf(typeof(BackgroundService)) && !
+            t.IsAbstract && 
+            enabledWorkers.Contains(t.Name));
 
-		    if (enabledWorkers.Contains(nameof(VideoSplitterWorker)))
-		    {
-			    services.AddHostedService<VideoSplitterWorker>();
-		    }
+		foreach (var workerType in workers)
+		{
+			var method = typeof(ServiceCollectionHostedServiceExtensions)
+				.GetMethods()
+				.First(m =>
+					m.Name == "AddHostedService" &&
+					m.IsGenericMethodDefinition &&
+					m.GetParameters().Length == 1
+				);
+
+			var genericMethod = method.MakeGenericMethod(workerType);
+
+			genericMethod.Invoke(null, new object[] { services });
+		}
 	}
 }

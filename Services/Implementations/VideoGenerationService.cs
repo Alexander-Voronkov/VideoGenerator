@@ -1,8 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Telegram.Bot.Types;
-using System.Diagnostics;
 using VideoGenerator.Configs;
 using VideoGenerator.Entities;
 using VideoGenerator.Infrastructure;
@@ -27,6 +25,8 @@ public class VideoGenerationService : IVideoGenerationService
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string VideosBucket = "generated-videos";
 
+	private readonly TimeSpan IntroTextShowDuration = TimeSpan.FromSeconds(5);
+	private const float MusicVolume = 0.15F;
 
 	public VideoGenerationService(
         IVideoProcessingService videoService,
@@ -51,6 +51,8 @@ public class VideoGenerationService : IVideoGenerationService
         string title,
         CancellationToken token = default)
 	{
+		_logger.LogInformation("VideoMakerWorker: start video generation.");
+
 		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
 		var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
@@ -65,7 +67,9 @@ public class VideoGenerationService : IVideoGenerationService
         var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, title, partsCount, partLength, token);
 		
 		TryDelete(temp);
-		
+
+		_logger.LogInformation("VideoMakerWorker: end video generation.");
+
 		return objectNames.ToArray();
 	}
 
@@ -126,7 +130,7 @@ public class VideoGenerationService : IVideoGenerationService
 		var tempPath = Path.Combine(Path.GetTempPath(), $"entitled-{objectName}.mp4");
 		var tempTextPath = Path.Combine(Path.GetTempPath(), $"title-{objectName}.ass");
 		
-		var line = new TimestampedLine($"{title}" + (partsCount > 1 ? $" Part {part}/{partsCount}" : ""), TimeSpan.Zero, mediaInfo.Duration);
+		var line = new TimestampedLine($"{title}" + (partsCount > 1 ? $" Part {part}/{partsCount}" : ""), TimeSpan.Zero, IntroTextShowDuration);
 		var subs = _assService.GenerateFromTimestampedLines([line], position: 8, fontSize: 60);
 		await File.WriteAllTextAsync(tempTextPath, subs, token);
 		
@@ -222,7 +226,7 @@ public class VideoGenerationService : IVideoGenerationService
 				loopedMusicPath, 
 				backgroundVideoPath, 
 				videoWithMusic, 
-				volume: 0.15F, 
+				volume: MusicVolume, 
 				overrideOriginalAudio: true, 
 				token: token);
 

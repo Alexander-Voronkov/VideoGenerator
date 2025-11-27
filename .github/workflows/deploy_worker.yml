@@ -2,6 +2,15 @@ name: Deploy .NET App via SSH (Rebuild Container)
 
 on:
   workflow_dispatch:
+    inputs:
+      worker-config:
+        description: "What to deploy"
+        required: true
+        default: "VideoMakerWorker"
+        type: choice
+        options:
+          - VideoMakerWorker
+          - VideoSplitterWorker
 
 jobs:
   deploy:
@@ -28,26 +37,26 @@ jobs:
           key: ${{ secrets.VM_SECRET_KEY }}
           port: 22
           script: |
-            echo "🚀 Starting deploy on $(hostname)"
+            CONFIG="${{ github.event.inputs.worker-config }}"
+            echo "🚀 Deploying service with config: $CONFIG on $(hostname)"
             cd ~/videogeneratorworker-src
 
             echo "🔨 Rebuilding Docker image..."
-            sudo docker build -t videogeneratorworker:latest .
+            sudo docker build -t $CONFIG:latest .
 
-            if sudo docker ps -q -f name=videogeneratorworker > /dev/null; then
+            if sudo docker ps -q -f name=$CONFIG > /dev/null; then
               echo "♻️ Restarting existing container..."
-              sudo docker stop videogeneratorworker
-              sudo docker rm videogeneratorworker
-            else
-              echo "🆕 No existing container found, creating new one..."
+              sudo docker stop $CONFIG
+              sudo docker rm $CONFIG
             fi
 
-            echo "🔥 Running updated container..."
+            echo "🔥 Running updated container with $CONFIG..."
             sudo docker run -d \
               --name videogeneratorworker \
               --restart always \
               --network npmnetwork \
               -e DOTNET_ENVIRONMENT=Production \
+              -e WORKERS__0=$CONFIG \
               videogeneratorworker:latest
 
             echo "✅ Deploy complete!"
