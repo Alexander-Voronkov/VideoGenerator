@@ -3,6 +3,8 @@ using Xabe.FFmpeg;
 
 namespace VideoGenerator.Services.Interfaces;
 
+public record AddWidgetConfig(string BackgroundColor = "0x00ff00", float Similarity = 0.1f, float StartTime = 0, bool Loop = false, bool FadeIn = false, bool FadeOut = false, float FadeDuration = 0.3f);
+
 public interface IVideoProcessingService
 {
     Task<TimeSpan> SplitAsync(
@@ -68,4 +70,6 @@ public interface IVideoProcessingService
         CancellationToken token = default);
     
     Task<TimeSpan> LoopForAsync(string inputFilePath, string outputFilePath, TimeSpan duration, CancellationToken token = default);
+    
+    Task<TimeSpan> AddWidgetAsync(string inputFilePath, string widgetFilePath, string outputFilePath, AddWidgetConfig config, CancellationToken token = default);
 }

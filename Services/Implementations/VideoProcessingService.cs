@@ -484,6 +484,74 @@ public class VideoProcessingService : IVideoProcessingService
         return result.Duration;
     }
 
+    public async Task<TimeSpan> AddWidgetAsync(string inputFilePath, string widgetFilePath, string outputFilePath, AddWidgetConfig config, CancellationToken token = default)
+    {
+	    var baseMediaInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
+
+	    var baseWidth = baseMediaInfo.VideoStreams.First().Width;
+	    
+	    var widgetInfo = await FFmpeg.GetMediaInfo(widgetFilePath, token);
+	    var widgetStream = widgetInfo.VideoStreams.First();
+	    
+	    var fps = (int)Math.Round(widgetStream.Framerate);
+	    var frames = (int)(widgetStream.Duration.TotalSeconds * fps);
+
+	    var startSeconds = config.StartTime;
+	    
+	    var loopFilter = config.Loop
+		    ? $"loop=loop=-1:size={frames},"
+		    : "";
+	    
+	    var widgetDuration = widgetStream.Duration.TotalSeconds;
+	    var fadeOutStart = widgetDuration - config.FadeDuration;
+	    
+	    var fadeInCmd = $"fade=t=in:st=0:d={config.FadeDuration}:alpha=1";
+	    var fadeOutCmd = $"fade=t=out:st={fadeOutStart}:d={config.FadeDuration}:alpha=1";
+
+	    var fadeFilters = "";
+
+	    if (config.Loop && config.FadeIn)
+	    {
+		    fadeFilters = $",{fadeInCmd}";
+	    }
+	    else if (config.FadeIn && config.FadeOut)
+	    {
+		    fadeFilters = $",{fadeInCmd},{fadeOutCmd}";
+	    }
+	    else if (config.FadeIn)
+	    {
+		    fadeFilters = $",{fadeInCmd}";
+	    }
+	    else if (config.FadeOut)
+	    {
+		    fadeFilters = $",{fadeOutCmd}";
+	    }
+	    
+	    string timeShift = $",setpts=PTS-STARTPTS+{startSeconds}/TB";
+	    
+	    string filter = $@"
+		    [1:v]{loopFilter}scale={baseWidth}:-1,
+		          colorkey={config.BackgroundColor}:{config.Similarity}:0.2{fadeFilters}{timeShift}[ov];
+		    [0:v][ov]overlay=(W-w)/2:100:enable='gte(t,{startSeconds})'[vout]
+		";
+	    
+	    var conversion = FFmpeg.Conversions.New()
+		    .AddParameter($"-i \"{inputFilePath}\"", ParameterPosition.PreInput)
+		    .AddParameter($"-i \"{widgetFilePath}\"", ParameterPosition.PreInput)
+		    .AddParameter($"-filter_complex \"{filter}\"")
+		    .AddParameter("-map \"[vout]\"")
+		    .AddParameter("-map 0:a?")
+		    .SetOutput(outputFilePath);
+	    
+	    conversion.OnProgress += Conversion_OnProgress;
+
+	    var result = await conversion.Start(token);
+	    
+	    _logger.LogInformation("Applying widget took {JobDuration} seconds.", result.Duration);
+	    
+	    return result.Duration;
+    }
+
     private void Conversion_OnProgress(object sender, Xabe.FFmpeg.Events.ConversionProgressEventArgs args)
     {
         if (lastProgress != 0 && Math.Abs(args.Percent - lastProgress) <= 5) return;

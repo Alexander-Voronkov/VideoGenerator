@@ -24,8 +24,10 @@ public class VideoGenerationService : IVideoGenerationService
 	private const string AssSubtitlesBucket = "ass-subtitles";
 	private const string TtsSubtitlesBucket = "tts-subtitles";
 	private const string VideosBucket = "generated-videos";
+	private const string WidgetBucket = "widgets";
 
 	private readonly TimeSpan IntroTextShowDuration = TimeSpan.FromSeconds(5);
+	private readonly TimeSpan SubscribeWidgetStartTime = TimeSpan.FromSeconds(5.5);
 	private const float MusicVolume = 0.15F;
 
 	public VideoGenerationService(
@@ -52,6 +54,7 @@ public class VideoGenerationService : IVideoGenerationService
         CancellationToken token = default)
 	{
 		_logger.LogInformation("VideoMakerWorker: start video generation.");
+		await _minioBlobService.MakeBucketPublicAsync(WidgetBucket, token);
 
 		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
@@ -103,13 +106,22 @@ public class VideoGenerationService : IVideoGenerationService
 			{
 				var partObjectName = objectName + "_" + i;
 				
-				var path = await AttachTitle(partObjectName, part, title, i, partsCount, token );
+				var entitledPath = await AttachTitle(partObjectName, part, title, i, partsCount, token );
+
+				var config = new AddWidgetConfig
+				{
+					BackgroundColor = "0x000000",
+					Similarity = 0.01f,
+					StartTime = (float)SubscribeWidgetStartTime.TotalSeconds
+				};
+				
+				var path = await ApplyVideoWidget(objectName,"subscribe",  entitledPath, config, token);
 				await UploadVideo(partObjectName, path, token);
 				
 				objectNames.Add(partObjectName);
 				i++;
 				
-				TryDelete(part, path);
+				TryDelete(part, path, entitledPath);
 			}
 		}
 		else
@@ -321,6 +333,25 @@ public class VideoGenerationService : IVideoGenerationService
 		}
 		
 		return tempTrimmedBackgroundVideoPath;
+	}
+
+	private async Task<string> ApplyVideoWidget(string objectName, string widgetName, string backgroundVideoPath,
+		AddWidgetConfig config, CancellationToken token)
+	{
+		var tempWidgetPath = Path.Combine(Path.GetTempPath(), $"widget_{objectName}_{widgetName}.mp4");
+
+		await using (var str = File.Open(tempWidgetPath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+			             FileShare.ReadWrite))
+		{
+			await _minioBlobService.DownloadAsync(WidgetBucket, widgetName + ".mp4", str, token);
+		}
+
+		var outputVideoPath = Path.Combine(Path.GetTempPath(), $"applied_widget_{widgetName}_{objectName}.mp4");
+		await _videoService.AddWidgetAsync(backgroundVideoPath, tempWidgetPath, outputVideoPath, config, token);
+		
+		TryDelete(tempWidgetPath);
+		
+		return outputVideoPath;
 	}
 
 	private void TryDelete(string path)

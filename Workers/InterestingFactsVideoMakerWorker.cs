@@ -24,7 +24,7 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
 		{
 			try
 			{
-
+				// interesting as fuck
 			}
 			catch
 			{

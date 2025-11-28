@@ -14,4 +14,9 @@ public class ElevenLabsConfig
 	
 	public float SpeedMultiplier { get; set; }
 	
+	public float Stability { get; set; }
+	
+	public float Clarity { get; set; }
+
+	public float Style { get; set; }
 }
