@@ -35,9 +35,8 @@ public static partial class Extensions
             })
             .AddDbContextFactory<ApplicationDbContext>(x =>
             {
-                x.EnableSensitiveDataLogging(false);
-                x.EnableDetailedErrors(true);
                 x.UseNpgsql(hostContext.Configuration.GetConnectionString("Default"));
+                x.LogTo(Console.WriteLine, Microsoft.Extensions.Logging.LogLevel.None);
             })
             .AddSingleton<IMinioBlobService, MinioBlobService>()
             .AddSingleton<ISubtitleGeneratorService, SubtitleGeneratorService>()
