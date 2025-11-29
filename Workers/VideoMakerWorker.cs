@@ -58,7 +58,9 @@ public class VideoMakerWorker : BackgroundService
 				var objectNames = await _videoService.CreateVideo(objectName, queueItem.Title, token);
 
 				await SaveVideosToUploadQueue(objectNames, queueItem, token);
-			}
+
+                _logger.LogInformation("End processing brainrot id: {id}", queueItem.Id);
+            }
 			catch(Exception ex)
 			{
 				_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
