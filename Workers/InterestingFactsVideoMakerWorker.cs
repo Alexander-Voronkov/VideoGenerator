@@ -16,7 +16,6 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
 
     private readonly TimeSpan JobInterval = TimeSpan.FromMinutes(15);
     private const string GeneratedVideosBucket = "generated-videos";
-    private const string Language = "en";
 
     public InterestingFactsVideoMakerWorker(
 		ILogger<InterestingFactsVideoMakerWorker> logger,
@@ -49,16 +48,15 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
 
 				_logger.LogInformation("Processing interesting fact id: {id}", queueItem.Id);
 
-                var objectName = queueItem.Id + Language;
-
                 await _subtitleGeneratorService.GenerateSubtitlesForInterestingFact(queueItem, stoppingToken);
-                var objectNames = await _videoService.CreateInterestingFactVideo(queueItem, stoppingToken);
+                await _videoService.CreateInterestingFactVideo(queueItem, stoppingToken);
 
                 await SaveVideoToUploadQueue(queueItem, stoppingToken);
             }
-			catch
+			catch(Exception ex)
 			{
-				_logger.LogError("{Worker} failed to process job.", nameof(InterestingFactsVideoMakerWorker));
+				_logger.LogError("{Worker} failed to process job. {Error}", nameof(InterestingFactsVideoMakerWorker), ex);
+                await RevertQueueItemStatusOnError(queueItem, stoppingToken);
             }
 
             _logger.LogInformation("{Worker} finished.", nameof(InterestingFactsVideoMakerWorker));
@@ -104,6 +102,16 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
 
             queueItem.Status = GenerationStatus.Processed;
 
+            await dbContext.SaveChangesAsync(token);
+        }
+    }
+
+    private async Task RevertQueueItemStatusOnError(GenerationQueueItem queueItem, CancellationToken token = default)
+    {
+        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
+        {
+            dbContext.Attach(queueItem);
+            queueItem.Status = GenerationStatus.ReadyToProcess;
             await dbContext.SaveChangesAsync(token);
         }
     }

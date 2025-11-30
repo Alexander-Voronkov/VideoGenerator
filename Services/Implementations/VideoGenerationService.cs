@@ -288,7 +288,7 @@ public class VideoGenerationService : IVideoGenerationService
 				.ThenBy(x => x.LastTookPartAt)
 				.ThenBy(x => x.Duration)
 				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= duration.TotalMinutes - i 
-				                          || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= duration.TotalMinutes - i), token);
+					|| !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= duration.TotalMinutes - i), token);
 
 			await dbContext.Set<SplitHistory>()
 				.Where(x => x.Id == video.Id)
@@ -364,30 +364,35 @@ public class VideoGenerationService : IVideoGenerationService
     {
 		var objectName = queueItem.Id + "en";
 
-        var backgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}.mp4");
         var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
 
         await using var dbContext = await _dbContextFactory.CreateDbContextAsync(token);
         var selectedVideos = new List<string>();
 
-		int counter = 0;
+		var stockVideosSearchResults = await Task.WhenAll(queueItem.Keywords.Select(_stockContentService.GetRandomVideoUrlAsync));
+		var foundStockVideos = stockVideosSearchResults.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();	
+        var videoDuration = duration / foundStockVideos.Count;
 
-		var videoDuration = duration / queueItem.Keywords.Count;
-
-        for (var i = TimeSpan.Zero; i < duration; i =+ videoDuration)
+        for (var i = 0; i < foundStockVideos.Count; i++)
         {
-			var keyword = queueItem.Keywords[counter++];
-            var video = await _stockContentService.GetRandomVideoUrlAsync(keyword);
-			var outputVideoPath = Path.Combine(Path.GetTempPath(), $"splitted_{objectName}_{counter}.mp4");
+            var stockVideo = foundStockVideos[i];
 
-            await _videoService.SplitAtAsync(video, outputVideoPath, TimeSpan.Zero, videoDuration, token);
+            var outputVideoPath = Path.Combine(Path.GetTempPath(), $"splitted_{objectName}_{i}.mp4");
+
+            await _videoService.SplitAtAsync(
+                stockVideo,
+                outputVideoPath,
+                TimeSpan.Zero,
+                videoDuration,
+                token
+            );
 
             selectedVideos.Add(outputVideoPath);
         }
 
         await _videoService.MergeVideosAsync(
             selectedVideos.ToArray(),
-			backgroundVideoPath,
+            tempTrimmedBackgroundVideoPath,
 			token);
 
         foreach (var tempPath in selectedVideos)
