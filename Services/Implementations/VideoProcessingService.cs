@@ -1,13 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
-using Polly;
-using Polly.Timeout;
-using System;
-using System.Collections.Concurrent;
 using System.Drawing;
 using VideoGenerator.Extensions;
 using VideoGenerator.Services.Interfaces;
 using Xabe.FFmpeg;
-using Xabe.FFmpeg.Downloader;
 
 namespace VideoGenerator.Services.Implementations;
 
@@ -77,7 +72,7 @@ public class VideoProcessingService : IVideoProcessingService
 
         var result = await conversion.Start(token);
 
-        _logger.LogInformation($"Audio attaching took {result.Duration.TotalSeconds} seconds.");
+        _logger.LogInformation("Audio attaching took {Duration}", result.Duration);
         return result.Duration;
     }
 
@@ -103,7 +98,7 @@ public class VideoProcessingService : IVideoProcessingService
         var conversion = await FFmpeg.Conversions.FromSnippet.ExtractAudio(inputFilePath, outputAudioPath);
         var result = await conversion.Start(token);
 
-        _logger.LogInformation($"Audio detaching took {result.Duration.TotalSeconds} seconds.");
+        _logger.LogInformation("Audio detaching took {Duration}.", result.Duration);
         return result.Duration;
     }
 
@@ -138,7 +133,8 @@ public class VideoProcessingService : IVideoProcessingService
             outputFilePath,
             timing);
         var result = await conversion.Start(token);
-		_logger.LogInformation($"Snapshot taking took {result.Duration.TotalSeconds} seconds.");
+
+		_logger.LogInformation("Snapshot taking took {Duration}.", result.Duration);
 
 		return result.Duration;
     }
@@ -171,7 +167,7 @@ public class VideoProcessingService : IVideoProcessingService
 
 			var result = await conversion.Start(token);
 
-			_logger.LogInformation($"Merging of videos took {result.Duration.TotalSeconds} seconds.");
+			_logger.LogInformation("Merging of videos took {Duration}.", result.Duration);
 
 			return result.Duration;
 		}
@@ -199,7 +195,7 @@ public class VideoProcessingService : IVideoProcessingService
     {
         var conversion = await FFmpeg.Conversions.FromSnippet.SetWatermark(inputFilePath, outputFilePath, watermarkPath, position);
         var result = await conversion.Start(token);
-		_logger.LogInformation($"Placing watermark took {result.Duration.TotalSeconds} seconds.");
+		_logger.LogInformation("Placing watermark took {Duration}.", result.Duration);
 
 		return result.Duration;
     }
@@ -223,8 +219,9 @@ public class VideoProcessingService : IVideoProcessingService
         var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
         var i = 0;
         var start = TimeSpan.FromSeconds(0);
-        var totalDuration = 0;
+        var totalDuration = TimeSpan.Zero;
         var tasks = new List<Task>();
+        var lockObj = new object();
 
         for (; start < inputVideoInfo.Duration && i < videoCount; start = start.Add(videoLength), i++)
         {
@@ -241,14 +238,17 @@ public class VideoProcessingService : IVideoProcessingService
                 start,
                 videoLength);
                 var result = await conversion.Start(token);
-                Interlocked.Add(ref totalDuration, (int)result.Duration.TotalSeconds);
+                lock(lockObj)
+                {
+                    totalDuration += result.Duration;
+                }
             }, token));
         }
 
         await Task.WhenAll(tasks);
-		_logger.LogInformation($"Splitting of the video took {totalDuration} seconds.");
+		_logger.LogInformation("Splitting of the video took {totalDuration}.", totalDuration);
 
-		return TimeSpan.FromSeconds(totalDuration);
+		return totalDuration;
     }
 
     /// <summary>
@@ -278,7 +278,8 @@ public class VideoProcessingService : IVideoProcessingService
             .AddParameter("-r 29.97");
         conversion.OnProgress += Conversion_OnProgress;
         var result = await conversion.Start(token);
-		_logger.LogInformation($"Splitting of the video took {result.Duration.TotalSeconds} seconds.");
+
+		_logger.LogInformation("Splitting of the video took {Duration}.", result.Duration);
 
 		return result.Duration;
     }
@@ -298,7 +299,7 @@ public class VideoProcessingService : IVideoProcessingService
         CancellationToken token = default)
     {
         var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
-        var totalDuration = 0;
+        var totalDuration = TimeSpan.Zero;
 
         int videoCount = (int)Math.Round(inputVideoInfo.Duration.TotalSeconds / videoLength.TotalSeconds);
 
@@ -347,7 +348,7 @@ public class VideoProcessingService : IVideoProcessingService
 #endif
                     .Start(token);
 
-				totalDuration += (int)result.Duration.TotalSeconds;
+				totalDuration += result.Duration;
 				resultVideos.Add(outputFile);
 
 				_logger.LogInformation("Finished splitting {I}/{Count}", i, videoCount);
@@ -370,9 +371,9 @@ public class VideoProcessingService : IVideoProcessingService
 			}
 		}
 
-		_logger.LogInformation("Splitting of the video took {TotalDuration} seconds.", totalDuration);
+		_logger.LogInformation("Splitting of the video took {TotalDuration}", totalDuration);
 
-		return (resultVideos.ToArray(), TimeSpan.FromSeconds(totalDuration));
+		return (resultVideos.ToArray(), totalDuration);
     }
 
     /// <summary>
@@ -420,7 +421,8 @@ public class VideoProcessingService : IVideoProcessingService
             .AddParameter($@"-vf ""drawtext=text='{text}':font='{font}':fontsize={fontSize}:{position}:enable='between(t,{startTime?.ToFFmpeg()},{endTime?.ToFFmpeg()})'""")
             .SetOutput(outputFilePath)
             .Start(token);
-		_logger.LogInformation($"Writing text on video took {result.Duration.TotalSeconds} seconds.");
+
+		_logger.LogInformation("Writing text on video took {Duration}", result.Duration);
 
 		return result.Duration;
     }
@@ -465,7 +467,7 @@ public class VideoProcessingService : IVideoProcessingService
         conversion.OnProgress += Conversion_OnProgress;
 
         var result = await conversion.Start(token);
-		_logger.LogInformation($"Adding subtitles took {result.Duration.TotalSeconds}");
+		_logger.LogInformation("Adding subtitles took {Duration}", result.Duration);
 
 		return result.Duration;
     }
@@ -554,9 +556,9 @@ public class VideoProcessingService : IVideoProcessingService
 
     private void Conversion_OnProgress(object sender, Xabe.FFmpeg.Events.ConversionProgressEventArgs args)
     {
-        if (lastProgress != 0 && Math.Abs(args.Percent - lastProgress) <= 5) return;
+        if (lastProgress != 0 && Math.Abs(args.Percent - lastProgress) < 25) return;
         lastProgress = args.Percent;
 
-        Console.WriteLine($"Generating - {args.Percent}%");
+        _logger.LogInformation($"Generating - Process ({args.ProcessId}) - {args.Percent}%");
     }
 }
