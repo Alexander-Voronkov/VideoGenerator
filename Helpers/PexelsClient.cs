@@ -342,6 +342,42 @@ public class PexelsClient
     //   pageSize:
     //     The number of results you are requesting per page. Default: 15 Max: 80
 
+    public class MyVideoFile
+    {
+        [JsonProperty("id")]
+        public long id { get; set; }
+
+        [JsonProperty("quality")]
+        public string quality { get; set; }
+
+        [JsonProperty("file_type")]
+        public string fileType { get; set; }
+
+        [JsonProperty("width")]
+        public int? width { get; set; }
+
+        [JsonProperty("height")]
+        public int? height { get; set; }
+
+        [JsonProperty("fps")]
+        public double? fps { get; set; }
+
+        [JsonProperty("link")]
+        public string link { get; set; }
+    }
+
+    public class MyVideoPicture
+    {
+        [JsonProperty("id")]
+        public long id { get; set; }
+
+        [JsonProperty("picture")]
+        public string picture { get; set; }
+
+        [JsonProperty("nr")]
+        public int nr { get; set; }
+    }
+
     public class MyVideo
     {
         [JsonProperty("id")]
@@ -363,13 +399,25 @@ public class PexelsClient
         public int duration { get; set; }
 
         [JsonProperty("user")]
-        public User user { get; set; }
+        public MyUser user { get; set; }
 
         [JsonProperty("video_files")]
-        public IEnumerable<VideoFile> videoFiles { get; set; }
+        public IEnumerable<MyVideoFile> videoFiles { get; set; }
 
         [JsonProperty("video_pictures")]
-        public IEnumerable<VideoPicture> videoPictures { get; set; }
+        public IEnumerable<MyVideoPicture> videoPictures { get; set; }
+    }
+
+    public class MyUser
+    {
+        [JsonProperty("id")]
+        public long id { get; set; }
+
+        [JsonProperty("name")]
+        public string name { get; set; }
+
+        [JsonProperty("url")]
+        public string url { get; set; }
     }
 
     public class MyVideoPage : Page
