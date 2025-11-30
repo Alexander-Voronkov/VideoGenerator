@@ -90,9 +90,8 @@ public class VideoMakerWorker : BackgroundService
 	{
 		await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
 		{
-			for (int i = 0; i < objectNames.Length; i++)
-			{
-				dbContext.Set<GeneratedVideo>().Add(new()
+			var videos = objectNames.Select((x, i) =>
+				new GeneratedVideo()
 				{
 					GenerationQueueId = queueItem.Id,
 					BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
@@ -100,7 +99,14 @@ public class VideoMakerWorker : BackgroundService
 					PartNumber = i + 1,
 					TotalParts = objectNames.Length
 				});
-			}
+
+			var batch = new PublishBatch()
+			{
+				GenerationQueueItemId = queueItem.Id,
+			};
+			
+			dbContext.Set<GeneratedVideo>().AddRange(videos);
+			dbContext.Set<PublishBatch>().Add(batch);
 
 			dbContext.Attach(queueItem);
 
