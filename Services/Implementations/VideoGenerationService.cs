@@ -367,28 +367,81 @@ public class VideoGenerationService : IVideoGenerationService
         var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
 
         await using var dbContext = await _dbContextFactory.CreateDbContextAsync(token);
+
         var selectedVideos = new List<string>();
 
-		var stockVideosSearchResults = await Task.WhenAll(queueItem.Keywords.Select(_stockContentService.GetRandomVideoUrlAsync));
-		var foundStockVideos = stockVideosSearchResults.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();	
-        var videoDuration = duration / foundStockVideos.Count;
+        var maxVideoDuration = duration / queueItem.Keywords.Count;
 
-        for (var i = 0; i < foundStockVideos.Count; i++)
+        for (var i = 0; i < queueItem.Keywords.Count; i++)
         {
-            var stockVideo = foundStockVideos[i];
+            var keyword = queueItem.Keywords[i];
 
-            var outputVideoPath = Path.Combine(Path.GetTempPath(), $"splitted_{objectName}_{i}.mp4");
+            var parts = new List<string>();
+            var collectedDuration = TimeSpan.Zero;
+            var partIndex = 0;
 
-            await _videoService.SplitAtAsync(
-                stockVideo,
-                outputVideoPath,
-                TimeSpan.Zero,
-                videoDuration,
-                token
+            // Пока не набрали maxVideoDuration — продолжаем брать стоки по этому ключевому слову
+            while (collectedDuration < maxVideoDuration)
+            {
+                var stockVideo = await _stockContentService.GetRandomVideoUrlAsync(keyword);
+
+                if (string.IsNullOrWhiteSpace(stockVideo))
+                    break;
+
+                // Узнаем длительность сток-видео
+                var info = await FFmpeg.GetMediaInfo(stockVideo, token);
+                var stockDuration = info.Duration;
+
+                // Сколько можем взять
+                var remaining = maxVideoDuration - collectedDuration;
+                var take = stockDuration < remaining ? stockDuration : remaining;
+
+                var outputPart = Path.Combine(
+                    Path.GetTempPath(),
+                    $"splitted_{objectName}_{i}_part_{partIndex}.mp4"
+                );
+
+                // Режем кусок с начала
+                await _videoService.SplitAtAsync(
+                    stockVideo,
+                    outputPart,
+                    TimeSpan.Zero,
+                    take,
+                    token
+                );
+
+                parts.Add(outputPart);
+                collectedDuration += take;
+                partIndex++;
+            }
+
+            if (parts.Count == 0)
+                continue;
+
+			if (parts.Count == 1)
+			{
+				selectedVideos.Add(parts[0]);
+				continue;
+            }
+
+            var mergedOutput = Path.Combine(
+                Path.GetTempPath(),
+                $"segment_{objectName}_{i}.mp4"
             );
 
-            selectedVideos.Add(outputVideoPath);
+            await _videoService.MergeVideosAsync(
+                parts.ToArray(),
+                mergedOutput,
+                token
+            );
         }
+
+        // В конце мержим все сегменты в один финальный ролик
+        await _videoService.MergeVideosAsync(
+            selectedVideos.ToArray(),
+            tempTrimmedBackgroundVideoPath,
+            token
+        );
 
         await _videoService.MergeVideosAsync(
             selectedVideos.ToArray(),

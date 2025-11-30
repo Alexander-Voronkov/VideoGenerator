@@ -378,7 +378,7 @@ public class PexelsClient
         public IEnumerable<MyVideo> videos { get; set; }
     }
 
-    public async Task<MyVideoPage> SearchVideosAsync(string query, string orientation = "", string size = "", string locale = "", int page = 1, int pageSize = 15)
+    public async Task<MyVideoPage> SearchVideosAsync(string query, string orientation = "", string size = "", string locale = "", int page = 1, int pageSize = 15, int minimalSeconds = 10)
     {
         if (pageSize > 80)
         {
@@ -409,6 +409,11 @@ public class PexelsClient
         if (!string.IsNullOrEmpty(size) && isValidSize(size))
         {
             text = text + "&size=" + size;
+        }
+
+        if (minimalSeconds > 0)
+        {
+            text += $"&min_duration={minimalSeconds}";
         }
 
         HttpResponseMessage response = await client.GetAsync(text);
