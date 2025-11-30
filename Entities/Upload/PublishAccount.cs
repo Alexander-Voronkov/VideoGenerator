@@ -10,7 +10,10 @@ public class PublishAccount
     
     public UploadType Type { get; set; }
     
+    public VideoType ContentType { get; set; }
+    
     public DateTime LastPublishAt { get; set; } = DateTime.UtcNow;
     
     public List<PublishQueueItem> PublishQueueItems { get; set; } = new();
+    
 }

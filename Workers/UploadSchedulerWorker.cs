@@ -63,13 +63,15 @@ public class UploadSchedulerWorker : BackgroundService
                     foreach (var platformType in allPlatformTypes)
                     {
                         var account = await context.Set<PublishAccount>()
-                            .Where(x => x.Type == platformType)
+                            .Where(x => x.Type == platformType && x.ContentType == item.ContentType)
                             .OrderBy(x => x.LastPublishAt)
                             .FirstOrDefaultAsync(token);
 
                         if (account == null)
                         {
-                            _logger.LogWarning("No account found for platform {Platform}. Skipping.", platformType);
+                            _logger.LogWarning("No account found for platform {Platform} with {Type} content. Skipping.", 
+                                platformType, 
+                                item.ContentType.ToString());
                             continue;
                         }
 

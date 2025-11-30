@@ -12,6 +12,8 @@ public class PublishBatch
     
     public ApproveStatus ApproveStatus { get; set; } = ApproveStatus.Waiting;
     
+    public VideoType ContentType { get; set; }
+    
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     // To track whether batch is approved but not processed by worker to assign schedules and accounts

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Polly;
 using VideoGenerator.Entities;
+using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 
@@ -97,7 +98,7 @@ public class RedditBrainrotMakerWorker : BackgroundService
 				{
 					GenerationQueueId = queueItem.Id,
 					BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
-					Type = Enums.VideoType.RedditBrainrot,
+					Type = VideoType.RedditBrainrot,
                     UploadingStatus = UploadingStatus.NotUploaded,
 					PartNumber = i + 1,
 					TotalParts = objectNames.Length
@@ -106,6 +107,7 @@ public class RedditBrainrotMakerWorker : BackgroundService
 			var batch = new PublishBatch()
 			{
 				GenerationQueueItemId = queueItem.Id,
+				ContentType = VideoType.RedditBrainrot
 			};
 			
 			dbContext.Set<GeneratedVideo>().AddRange(videos);

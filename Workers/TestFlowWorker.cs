@@ -32,7 +32,7 @@ public class TestFlowWorker : BackgroundService
             } 
             catch(Exception ex)
             {
-                _logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
+                _logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(TestFlowWorker)} background service : {ex.Message}");
             }
 
             await Task.Delay(TimeSpan.FromMinutes(10), token);
