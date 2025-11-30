@@ -52,9 +52,9 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
                 var objectName = queueItem.Id + Language;
 
                 await _subtitleGeneratorService.GenerateSubtitlesForInterestingFact(queueItem, stoppingToken);
-                var objectNames = await _videoService.CreateInterestingFactVideo(objectName, queueItem.Title, stoppingToken);
+                var objectNames = await _videoService.CreateInterestingFactVideo(queueItem, stoppingToken);
 
-                await SaveVideosToUploadQueue(objectNames, queueItem, stoppingToken);
+                await SaveVideoToUploadQueue(queueItem, stoppingToken);
             }
 			catch
 			{
@@ -67,12 +67,13 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
 		}
 	}
 
-    private async Task<InterestingFactQueueItem> GetRandomQueueItem(CancellationToken token = default)
+    private async Task<GenerationQueueItem> GetRandomQueueItem(CancellationToken token = default)
     {
         await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
         {
-            var queueItem = await dbContext.Set<InterestingFactQueueItem>()
-                .Where(x => x.Status == GenerationStatus.ReadyToProcess)
+            var queueItem = await dbContext.Set<GenerationQueueItem>()
+                .Where(x => x.Status == GenerationStatus.ReadyToProcess 
+                    && x.Type == Enums.VideoType.InterestingFact)
                 .FirstOrDefaultAsync(token);
 
             queueItem.Status = GenerationStatus.Processing;
@@ -82,22 +83,22 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
             return queueItem;
         }
     }
-    private async Task SaveVideosToUploadQueue(string[] objectNames, InterestingFactQueueItem queueItem, CancellationToken token = default)
+
+    private async Task SaveVideoToUploadQueue(
+        GenerationQueueItem queueItem,
+        CancellationToken token = default)
     {
         await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
         {
-            for (int i = 0; i < objectNames.Length; i++)
+            dbContext.Set<GeneratedVideo>().Add(new()
             {
-                dbContext.Set<GeneratedVideo>().Add(new()
-                {
-                    GenerationQueueId = queueItem.Id,
-                    BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
-                    Type = Enums.VideoType.InterestingFact,
-                    UploadingStatus = UploadingStatus.NotUploaded,
-                    PartNumber = i + 1,
-                    TotalParts = objectNames.Length
-                });
-            }
+                GenerationQueueId = queueItem.Id,
+                BlobPath = $"{GeneratedVideosBucket}/{(queueItem.Id + "en")}",
+                Type = Enums.VideoType.InterestingFact,
+                UploadingStatus = UploadingStatus.NotUploaded,
+                PartNumber = 1,
+                TotalParts = 1
+            });
 
             dbContext.Attach(queueItem);
 

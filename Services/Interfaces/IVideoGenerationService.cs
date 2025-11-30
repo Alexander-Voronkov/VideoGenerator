@@ -1,14 +1,14 @@
-﻿namespace VideoGenerator.Services.Interfaces;
+﻿using VideoGenerator.Entities;
+
+namespace VideoGenerator.Services.Interfaces;
 
 public interface IVideoGenerationService
 {
     Task<string[]> CreateRedditBrainrotVideo(
-        string objectName,
-        string title,
+        GenerationQueueItem queueItem,
         CancellationToken token = default);
 
-    Task<string[]> CreateInterestingFactVideo(
-        string objectName,
-        string title,
+    Task<string> CreateInterestingFactVideo(
+        GenerationQueueItem queueItem,
         CancellationToken token = default);
 }

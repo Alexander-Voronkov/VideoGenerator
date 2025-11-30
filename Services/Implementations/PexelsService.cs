@@ -18,19 +18,17 @@ public class PexelsService : IPexelsService
 
 	public async Task<string> GetRandomImageUrlAsync(string query)
 	{
-		var images = await _client.SearchPhotosAsync(query, orientation: "portrait", page: 1, pageSize: 1);
-		var image = images.photos.Single();
+		var images = await _client.SearchPhotosAsync(query, orientation: "portrait", page: Random.Shared.Next(1, 10), pageSize: 10);
+		var found = images.photos.First();
 
-		var found = await _client.GetPhotoAsync(image.id);
 		return found.source.original;
 	}
 
 	public async Task<string> GetRandomVideoUrlAsync(string query)
 	{
-		var videos = await _client.SearchVideosAsync(query, orientation: "portrait", page: 1, pageSize: 1);
-		var video = videos.videos.Single();
+		var videos = await _client.SearchVideosAsync(query, orientation: "portrait", page: Random.Shared.Next(1, 10), pageSize: 10);
+		var found = videos.videos.First();
 
-		var found = await _client.GetVideoAsync(video.id);
 		return found.videoFiles.OrderByDescending(x => x.fps).ThenByDescending(x => x.quality).First().link;
 	}
 }

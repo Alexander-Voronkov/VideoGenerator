@@ -93,7 +93,7 @@ public class SubtitleGeneratorService : ISubtitleGeneratorService
         }
 	}
 
-    public async Task GenerateSubtitlesForInterestingFact(InterestingFactQueueItem pendingItem, CancellationToken token = default)
+    public async Task GenerateSubtitlesForInterestingFact(GenerationQueueItem pendingItem, CancellationToken token = default)
     {
         _logger.LogInformation("{service}: start interesting fact subtitles generation.", nameof(SubtitleGeneratorService));
 
