@@ -70,9 +70,8 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
         await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
         {
             var queueItem = await dbContext.Set<GenerationQueueItem>()
-                //.Where(x => x.Status == GenerationStatus.ReadyToProcess 
-                //    && x.Type == Enums.VideoType.InterestingFact)
-                .Where(x => x.Id == "11929be1-269f-4c5b-bced-de14b6391d77")
+                .Where(x => x.Status == GenerationStatus.ReadyToProcess
+                    && x.Type == Enums.VideoType.InterestingFact)
                 .FirstOrDefaultAsync(token);
 
             queueItem.Status = GenerationStatus.Processing;
