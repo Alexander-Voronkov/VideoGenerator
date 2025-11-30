@@ -48,13 +48,12 @@ public class VideoGenerationService : IVideoGenerationService
 		_logger = logger;
     }
 
-	public async Task<string[]> CreateVideo(
+	public async Task<string[]> CreateRedditBrainrotVideo(
         string objectName,
         string title,
         CancellationToken token = default)
 	{
-		_logger.LogInformation("VideoMakerWorker: start video generation.");
-		await _minioBlobService.MakeBucketPublicAsync(WidgetBucket, token);
+		_logger.LogInformation("VideoMakerWorker: start reddit brainrot video generation.");
 
 		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
@@ -76,7 +75,34 @@ public class VideoGenerationService : IVideoGenerationService
 		return objectNames.ToArray();
 	}
 
-	private async Task<(string audioPath, IMediaInfo mediaInfo)> DownloadNarration(string objectName, CancellationToken token = default)
+    public async Task<string[]> CreateInterestingFactVideo(
+        string objectName,
+        string title,
+        CancellationToken token = default)
+    {
+        _logger.LogInformation("VideoMakerWorker: start interesting fact video generation.");
+
+        var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
+
+        var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
+        var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
+        var tempVideoWithNarration = await AttachNarration(objectName, tempVideoWithMusic, tempAudioPath, token);
+        var tempVideoWithSubtitles = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
+
+        var generatedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempVideoWithSubtitles, token);
+        var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
+
+        string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
+        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, title, partsCount, partLength, token);
+
+        TryDelete(temp);
+
+        _logger.LogInformation("VideoMakerWorker: end video generation.");
+
+        return objectNames.ToArray();
+    }
+
+    private async Task<(string audioPath, IMediaInfo mediaInfo)> DownloadNarration(string objectName, CancellationToken token = default)
 	{
 		var tempAudioPath = Path.Combine(Path.GetTempPath(), $"tts-subtitles-{objectName}.mp3");
 

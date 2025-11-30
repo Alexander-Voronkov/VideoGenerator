@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using VideoGenerator.Entities;
+using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 
@@ -36,61 +37,115 @@ public class SubtitleGeneratorService : ISubtitleGeneratorService
 		_assConvertService = assConvertService;
     }
 
-    public async Task GenerateSubtitles(GenerationQueueItem pendingItem, CancellationToken token = default)
+    public async Task GenerateSubtitlesForReddit(GenerationQueueItem pendingItem, CancellationToken token = default)
 	{
-		_logger.LogInformation("{service}: start subtitles generation.", nameof(SubtitleGeneratorService));
+		_logger.LogInformation("{service}: start reddit subtitles generation.", nameof(SubtitleGeneratorService));
 
-		var dbContext = _dbContextFactory.CreateDbContext();
-
-		var objectName = pendingItem.Id + Language;
-
-		var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
-		var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
-
-		var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
-			.FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
-
-		if (!ttsExists)
+		await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
 		{
-			var text = pendingItem.Title + "\n" + pendingItem.Text;
-			var audioResult = await _textToSpeechService.CreateTextToSpeech(text, pendingItem.SexType, Language);
-			await using (var str = new MemoryStream(audioResult.Audio))
-			{
-				await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
-			}
+            var objectName = pendingItem.Id + Language;
 
-			if (generatedSubtitle is not null)
-			{
-				generatedSubtitle.TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
-			}
-			else
-			{
-				generatedSubtitle = new()
-				{
-					TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}",
-					Timestamps = JsonSerializer.Serialize(audioResult.Timestamps)
-				};
+            var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
+            var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
 
-				dbContext = _dbContextFactory.CreateDbContext();
+            var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
+                .FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
 
-				dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
-				await dbContext.SaveChangesAsync(token);
-			}
-		}
+            if (!ttsExists)
+            {
+                var text = pendingItem.Title + "\n" + pendingItem.Text;
+                var audioResult = await _textToSpeechService.CreateTextToSpeech(text, pendingItem.SexType, Language);
+                await using (var str = new MemoryStream(audioResult.Audio))
+                {
+                    await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
+                }
 
-		if (!assExists)
-		{
-			var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9, false);
-			await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
-			{
-				await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);
-			}
-			generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
-		}
+                if (generatedSubtitle is not null)
+                {
+                    generatedSubtitle.TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
+                }
+                else
+                {
+                    generatedSubtitle = new()
+                    {
+                        TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}",
+                        Timestamps = JsonSerializer.Serialize(audioResult.Timestamps)
+                    };
 
-		_logger.LogInformation("VideoMakerWorker: end subtitles generation.");
+                    dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
+                    await dbContext.SaveChangesAsync(token);
+                }
+            }
 
-		await dbContext.SaveChangesAsync(token);
-		dbContext.Dispose();
+            if (!assExists)
+            {
+                var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9, false);
+                await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
+                {
+                    await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);
+                }
+                generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
+            }
+
+            _logger.LogInformation("VideoMakerWorker: end reddit subtitles generation.");
+
+            await dbContext.SaveChangesAsync(token);
+        }
 	}
+
+    public async Task GenerateSubtitlesForInterestingFact(InterestingFactQueueItem pendingItem, CancellationToken token = default)
+    {
+        _logger.LogInformation("{service}: start interesting fact subtitles generation.", nameof(SubtitleGeneratorService));
+
+        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
+        {
+            var objectName = pendingItem.Id + Language;
+
+            var ttsExists = await _minioBlobService.ExistsAsync(TtsSubtitlesBucket, objectName, token);
+            var assExists = await _minioBlobService.ExistsAsync(AssSubtitlesBucket, objectName, token);
+
+            var generatedSubtitle = await dbContext.Set<GeneratedSubtitle>()
+                .FirstOrDefaultAsync(x => x.TtsBlobPath == $"{TtsSubtitlesBucket}/{objectName}" || x.AssBlobPath == $"{AssSubtitlesBucket}/{objectName}", token);
+
+            if (!ttsExists)
+            {
+                var text = pendingItem.Title + "\n" + pendingItem.Text;
+                var audioResult = await _textToSpeechService.CreateTextToSpeech(text, Random.Shared.Next() % 2 == 0 ? SexType.Female : SexType.Male, Language);
+                await using (var str = new MemoryStream(audioResult.Audio))
+                {
+                    await _minioBlobService.UploadAsync(TtsSubtitlesBucket, objectName, str, "audio/mpeg", token);
+                }
+
+                if (generatedSubtitle is not null)
+                {
+                    generatedSubtitle.TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}";
+                }
+                else
+                {
+                    generatedSubtitle = new()
+                    {
+                        TtsBlobPath = $"{TtsSubtitlesBucket}/{objectName}",
+                        Timestamps = JsonSerializer.Serialize(audioResult.Timestamps)
+                    };
+
+                    dbContext.Set<GeneratedSubtitle>().Add(generatedSubtitle);
+                    await dbContext.SaveChangesAsync(token);
+                }
+            }
+
+            if (!assExists)
+            {
+                var subtitles = _assConvertService.ConvertFromTimestampedTranscript(JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(generatedSubtitle.Timestamps), 9, false);
+                await using (var str = new MemoryStream(Encoding.UTF8.GetBytes(subtitles)))
+                {
+                    await _minioBlobService.UploadAsync(AssSubtitlesBucket, objectName, str, "text/ssa", token);
+                }
+                generatedSubtitle.AssBlobPath = $"{AssSubtitlesBucket}/{objectName}";
+            }
+
+            _logger.LogInformation("VideoMakerWorker: end interesting fact subtitles generation.");
+
+            await dbContext.SaveChangesAsync(token);
+        }
+    }
 }

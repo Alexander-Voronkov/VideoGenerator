@@ -56,7 +56,7 @@ public static partial class Extensions
 
 		var enabledWorkers = hostContext.Configuration.GetSection("Workers").Get<string[]>() ?? Array.Empty<string>();
 
-        var workers = typeof(VideoMakerWorker).Assembly.GetTypes().Where(t => 
+        var workers = typeof(RedditBrainrotMakerWorker).Assembly.GetTypes().Where(t => 
             t.IsSubclassOf(typeof(BackgroundService)) && !
             t.IsAbstract && 
             enabledWorkers.Contains(t.Name));

@@ -4,5 +4,6 @@ namespace VideoGenerator.Services.Interfaces;
 
 public interface ISubtitleGeneratorService
 {
-    Task GenerateSubtitles(GenerationQueueItem pendingItem, CancellationToken token = default);
+    Task GenerateSubtitlesForReddit(GenerationQueueItem pendingItem, CancellationToken token = default);
+    Task GenerateSubtitlesForInterestingFact(InterestingFactQueueItem pendingItem, CancellationToken token = default);
 }

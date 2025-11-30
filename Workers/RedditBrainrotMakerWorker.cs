@@ -8,7 +8,7 @@ using VideoGenerator.Services.Interfaces;
 
 namespace VideoGenerator.Workers;
 
-public class VideoMakerWorker : BackgroundService
+public class RedditBrainrotMakerWorker : BackgroundService
 {
     private readonly ILogger _logger;
 	private readonly IVideoGenerationService _videoService;
@@ -21,8 +21,8 @@ public class VideoMakerWorker : BackgroundService
 
 	private const string Language = "en";
 
-	public VideoMakerWorker(
-		ILogger<VideoMakerWorker> logger, 
+	public RedditBrainrotMakerWorker(
+		ILogger<RedditBrainrotMakerWorker> logger, 
 		IVideoGenerationService videoService, 
 		ISubtitleGeneratorService subtitleGeneratorService,
 		IDbContextFactory<ApplicationDbContext> dbContextFactory)
@@ -39,7 +39,7 @@ public class VideoMakerWorker : BackgroundService
 
 		while (!token.IsCancellationRequested)
 		{
-			_logger.LogInformation("{Worker} started.", nameof(VideoMakerWorker));
+			_logger.LogInformation("{Worker} started.", nameof(RedditBrainrotMakerWorker));
 
 			var queueItem = await GetRandomQueueItem(token);
 
@@ -54,8 +54,8 @@ public class VideoMakerWorker : BackgroundService
 
 				var objectName = queueItem.Id + Language;
 
-				await _subtitleGenerationService.GenerateSubtitles(queueItem, token);
-				var objectNames = await _videoService.CreateVideo(objectName, queueItem.Title, token);
+				await _subtitleGenerationService.GenerateSubtitlesForReddit(queueItem, token);
+				var objectNames = await _videoService.CreateRedditBrainrotVideo(objectName, queueItem.Title, token);
 
 				await SaveVideosToUploadQueue(objectNames, queueItem, token);
 
@@ -63,7 +63,7 @@ public class VideoMakerWorker : BackgroundService
             }
 			catch(Exception ex)
 			{
-				_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(VideoMakerWorker)} background service : {ex.Message}");
+				_logger.LogError(exception: ex, message: $"An error occurred while trying to execute {nameof(RedditBrainrotMakerWorker)} background service : {ex.Message}");
 
 				await RevertQueueItemStatusOnError(queueItem, token);
 			}
@@ -98,7 +98,8 @@ public class VideoMakerWorker : BackgroundService
 				{
 					GenerationQueueId = queueItem.Id,
 					BlobPath = $"{GeneratedVideosBucket}/{objectNames[i]}",
-					UploadingStatus = UploadingStatus.NotUploaded,
+					Type = Enums.VideoType.RedditBrainrot,
+                    UploadingStatus = UploadingStatus.NotUploaded,
 					PartNumber = i + 1,
 					TotalParts = objectNames.Length
 				});
