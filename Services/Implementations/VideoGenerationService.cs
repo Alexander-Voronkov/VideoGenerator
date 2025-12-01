@@ -13,11 +13,11 @@ public class VideoGenerationService : IVideoGenerationService
 {
     private readonly IVideoProcessingService _videoService;
     private readonly IMinioBlobService _minioBlobService;
-	private readonly MinioBlobConfig _minioBlobConfig;
 	private readonly RedditStoryConfig _redditStoryConfig;
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
     private readonly IAssConvertService  _assService;
 	private readonly ILogger _logger;
+	private readonly IStockContentService _stockContentService;
 
 	private const string BackgroundMusicBucket = "background-music";
 	private const string SplittedVideosBucket = "splitted-brainrot";
@@ -33,31 +33,32 @@ public class VideoGenerationService : IVideoGenerationService
 	public VideoGenerationService(
         IVideoProcessingService videoService,
         IMinioBlobService minioBlobService,
-		IOptions<MinioBlobConfig> minioBlobConfig,
         IOptions<RedditStoryConfig> redditStoryConfig,
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
 		ILogger<VideoGenerationService> logger,
-        IAssConvertService assService)
+        IAssConvertService assService,
+		IStockContentService stockContentService)
     {
         _videoService = videoService;
         _minioBlobService = minioBlobService;
-        _minioBlobConfig = minioBlobConfig.Value;
 		_redditStoryConfig = redditStoryConfig.Value;
 		_dbContextFactory = dbContextFactory;
 		_assService = assService;
 		_logger = logger;
+		_stockContentService = stockContentService;
     }
 
 	public async Task<string[]> CreateRedditBrainrotVideo(
-        string objectName,
-        string title,
+        GenerationQueueItem queueItem,
         CancellationToken token = default)
 	{
-		_logger.LogInformation("VideoMakerWorker: start reddit brainrot video generation.");
+		var objectName = queueItem.Id + "en";
+
+        _logger.LogInformation("VideoMakerWorker: start reddit brainrot video generation.");
 
 		var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
-		var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
+		var tempTrimmedBackgroundVideoPath = await PrepareBrainrotBackgroundVideo(objectName, mediaInfo.Duration, token);
 		var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
         var tempVideoWithNarration = await AttachNarration(objectName, tempVideoWithMusic, tempAudioPath, token);
         var tempVideoWithSubtitles = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
@@ -66,7 +67,7 @@ public class VideoGenerationService : IVideoGenerationService
 		var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
 		
         string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
-        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, title, partsCount, partLength, token);
+        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, queueItem.Title, partsCount, partLength, token);
 		
 		TryDelete(temp);
 
@@ -75,31 +76,29 @@ public class VideoGenerationService : IVideoGenerationService
 		return objectNames.ToArray();
 	}
 
-    public async Task<string[]> CreateInterestingFactVideo(
-        string objectName,
-        string title,
+    public async Task<string> CreateInterestingFactVideo(
+        GenerationQueueItem queueItem,
         CancellationToken token = default)
     {
         _logger.LogInformation("VideoMakerWorker: start interesting fact video generation.");
 
+		var objectName = queueItem.Id + "en";
+
         var (tempAudioPath, mediaInfo) = await DownloadNarration(objectName, token);
 
-        var tempTrimmedBackgroundVideoPath = await PrepareBackgroundVideo(objectName, mediaInfo.Duration, token);
+        var tempTrimmedBackgroundVideoPath = await PrepareInterestingFactBackgroundVideo(queueItem, mediaInfo.Duration, token);
         var tempVideoWithMusic = await PrepareBackgroundMusic(objectName, tempTrimmedBackgroundVideoPath, mediaInfo.Duration, token);
         var tempVideoWithNarration = await AttachNarration(objectName, tempVideoWithMusic, tempAudioPath, token);
-        var tempVideoWithSubtitles = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
+        var finalVideo = await AttachSubtitles(objectName, tempVideoWithNarration, mediaInfo.Duration, token);
 
-        var generatedVideoMediaInfo = await FFmpeg.GetMediaInfo(tempVideoWithSubtitles, token);
-        var (partsCount, partLength) = CalculatePartsCount(generatedVideoMediaInfo.Duration, _redditStoryConfig.TargetVideoLengthInSeconds);
+        string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, finalVideo];
 
-        string[] temp = [tempTrimmedBackgroundVideoPath, tempVideoWithMusic, tempVideoWithNarration, tempVideoWithSubtitles];
-        var objectNames = await SplitAndUpload(objectName, tempVideoWithSubtitles, title, partsCount, partLength, token);
-
+		await UploadVideo(objectName, finalVideo, token);
         TryDelete(temp);
 
         _logger.LogInformation("VideoMakerWorker: end video generation.");
 
-        return objectNames.ToArray();
+        return objectName;
     }
 
     private async Task<(string audioPath, IMediaInfo mediaInfo)> DownloadNarration(string objectName, CancellationToken token = default)
@@ -274,7 +273,7 @@ public class VideoGenerationService : IVideoGenerationService
 		return videoWithMusic;
 	}
 
-	private async Task<string> PrepareBackgroundVideo(string objectName, TimeSpan duration, CancellationToken token)
+	private async Task<string> PrepareBrainrotBackgroundVideo(string objectName, TimeSpan duration, CancellationToken token)
 	{
 		var backgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_{objectName}.mp4");
 		var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
@@ -289,7 +288,7 @@ public class VideoGenerationService : IVideoGenerationService
 				.ThenBy(x => x.LastTookPartAt)
 				.ThenBy(x => x.Duration)
 				.FirstOrDefaultAsync(x => x.Duration.TotalMinutes <= duration.TotalMinutes - i 
-				                          || !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= duration.TotalMinutes - i), token);
+					|| !dbContext.Set<SplitHistory>().Any(q => q.Duration.TotalMinutes <= duration.TotalMinutes - i), token);
 
 			await dbContext.Set<SplitHistory>()
 				.Where(x => x.Id == video.Id)
@@ -361,7 +360,103 @@ public class VideoGenerationService : IVideoGenerationService
 		return tempTrimmedBackgroundVideoPath;
 	}
 
-	private async Task<string> ApplyVideoWidget(string objectName, string widgetName, string backgroundVideoPath,
+    private async Task<string> PrepareInterestingFactBackgroundVideo(GenerationQueueItem queueItem, TimeSpan duration, CancellationToken token)
+    {
+		var objectName = queueItem.Id + "en";
+
+        var tempTrimmedBackgroundVideoPath = Path.Combine(Path.GetTempPath(), $"merged_splitted_{objectName}.mp4");
+
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(token);
+
+        var selectedVideos = new List<string>();
+
+        var maxVideoDuration = duration / queueItem.Keywords.Count;
+
+        for (var i = 0; i < queueItem.Keywords.Count; i++)
+        {
+            var keyword = queueItem.Keywords[i];
+
+            var parts = new List<string>();
+            var collectedDuration = TimeSpan.Zero;
+            var partIndex = 0;
+
+            // Пока не набрали maxVideoDuration — продолжаем брать стоки по этому ключевому слову
+            while (collectedDuration < maxVideoDuration)
+            {
+                var stockVideo = await _stockContentService.GetRandomVideoUrlAsync(keyword);
+
+                if (string.IsNullOrWhiteSpace(stockVideo))
+                    break;
+
+                // Узнаем длительность сток-видео
+                var info = await FFmpeg.GetMediaInfo(stockVideo, token);
+                var stockDuration = info.Duration;
+
+                // Сколько можем взять
+                var remaining = maxVideoDuration - collectedDuration;
+                var take = stockDuration < remaining ? stockDuration : remaining;
+
+                var outputPart = Path.Combine(
+                    Path.GetTempPath(),
+                    $"splitted_{objectName}_{i}_part_{partIndex}.mp4"
+                );
+
+                // Режем кусок с начала
+                await _videoService.SplitAtAsync(
+                    stockVideo,
+                    outputPart,
+                    TimeSpan.Zero,
+                    take,
+                    token
+                );
+
+                parts.Add(outputPart);
+                collectedDuration += take;
+                partIndex++;
+            }
+
+            if (parts.Count == 0)
+                continue;
+
+			if (parts.Count == 1)
+			{
+				selectedVideos.Add(parts[0]);
+				continue;
+            }
+
+            var mergedOutput = Path.Combine(
+                Path.GetTempPath(),
+                $"segment_{objectName}_{i}.mp4"
+            );
+
+            await _videoService.MergeVideosAsync(
+                parts.ToArray(),
+                mergedOutput,
+                token
+            );
+        }
+
+        // В конце мержим все сегменты в один финальный ролик
+        await _videoService.MergeVideosAsync(
+            selectedVideos.ToArray(),
+            tempTrimmedBackgroundVideoPath,
+            token
+        );
+
+        await _videoService.MergeVideosAsync(
+            selectedVideos.ToArray(),
+            tempTrimmedBackgroundVideoPath,
+			token);
+
+        foreach (var tempPath in selectedVideos)
+        {
+            TryDelete(tempPath);
+        }
+
+        return tempTrimmedBackgroundVideoPath;
+    }
+
+    private async Task<string> ApplyVideoWidget(string objectName, string widgetName, string backgroundVideoPath,
 		AddWidgetConfig config, CancellationToken token)
 	{
 		var tempWidgetPath = Path.Combine(Path.GetTempPath(), $"widget_{objectName}_{widgetName}.mp4");

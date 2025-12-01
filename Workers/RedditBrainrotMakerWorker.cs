@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Polly;
 using VideoGenerator.Entities;
 using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
@@ -56,7 +55,7 @@ public class RedditBrainrotMakerWorker : BackgroundService
 				var objectName = queueItem.Id + Language;
 
 				await _subtitleGenerationService.GenerateSubtitlesForReddit(queueItem, token);
-				var objectNames = await _videoService.CreateRedditBrainrotVideo(objectName, queueItem.Title, token);
+				var objectNames = await _videoService.CreateRedditBrainrotVideo(queueItem, token);
 
 				await SaveVideosToUploadQueue(objectNames, queueItem, token);
 

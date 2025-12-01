@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VideoGenerator.Infrastructure;
@@ -12,9 +13,11 @@ using VideoGenerator.Infrastructure;
 namespace VideoGenerator.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251130153445_RemoveInterestingFactsQueueItemEntity")]
+    partial class RemoveInterestingFactsQueueItemEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -176,55 +179,6 @@ namespace VideoGenerator.Migrations
                     b.Navigation("GenerationQueueItem");
                 });
 
-            modelBuilder.Entity("VideoGenerator.Entities.PublishBatch", b =>
-                {
-                    b.HasOne("VideoGenerator.Entities.GenerationQueueItem", "GenerationQueueItem")
-                        .WithMany()
-                        .HasForeignKey("GenerationQueueItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GenerationQueueItem");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Entities.PublishQueueItem", b =>
-                {
-                    b.HasOne("VideoGenerator.Entities.PublishAccount", "PublishAccount")
-                        .WithMany("PublishQueueItems")
-                        .HasForeignKey("PublishAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("VideoGenerator.Entities.PublishBatch", "PublishBatch")
-                        .WithMany("PublishQueueItems")
-                        .HasForeignKey("PublishBatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PublishAccount");
-
-                    b.Navigation("PublishBatch");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Entities.ScheduledUpload", b =>
-                {
-                    b.HasOne("VideoGenerator.Entities.GeneratedVideo", "GeneratedVideo")
-                        .WithMany()
-                        .HasForeignKey("GeneratedVideoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("VideoGenerator.Entities.PublishQueueItem", "PublishQueueItem")
-                        .WithMany("ScheduledUploads")
-                        .HasForeignKey("PublishQueueItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GeneratedVideo");
-
-                    b.Navigation("PublishQueueItem");
-                });
-
             modelBuilder.Entity("VideoGenerator.Entities.VideoUploadHistory", b =>
                 {
                     b.HasOne("VideoGenerator.Entities.GeneratedVideo", "GeneratedVideo")
@@ -234,21 +188,6 @@ namespace VideoGenerator.Migrations
                         .IsRequired();
 
                     b.Navigation("GeneratedVideo");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Entities.PublishAccount", b =>
-                {
-                    b.Navigation("PublishQueueItems");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Entities.PublishBatch", b =>
-                {
-                    b.Navigation("PublishQueueItems");
-                });
-
-            modelBuilder.Entity("VideoGenerator.Entities.PublishQueueItem", b =>
-                {
-                    b.Navigation("ScheduledUploads");
                 });
 #pragma warning restore 612, 618
         }

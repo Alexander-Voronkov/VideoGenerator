@@ -139,54 +139,45 @@ public class VideoProcessingService : IVideoProcessingService
 		return result.Duration;
     }
 
-	/// <summary>
-	/// Method for merging or concatenating some videos without re-encoding.
-	/// Requires that all input videos have the same codec, resolution, FPS, and container.
-	/// </summary>
-	/// <param name="inputFilePaths">Paths to the input files.</param>
-	/// <param name="outputFilePath">Path to the output file.</param>
-	/// <param name="token">Cancellation token.</param>
-	/// <returns></returns>
-	public async Task<TimeSpan> MergeVideosAsync(
-		string[] inputFilePaths,
-		string outputFilePath,
-		CancellationToken token = default)
-	{
-		if (inputFilePaths.Length <= 1)
-		{
-			throw new ArgumentException("Not enough input files to concatenate.", nameof(inputFilePaths));
-		}
+    /// <summary>
+    /// Method for merging or concatenating some videos without re-encoding.
+    /// Requires that all input videos have the same codec, resolution, FPS, and container.
+    /// </summary>
+    /// <param name="inputFilePaths">Paths to the input files.</param>
+    /// <param name="outputFilePath">Path to the output file.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns></returns>
+    public async Task<TimeSpan> MergeVideosAsync(
+    string[] inputFiles,
+    string outputFile,
+    CancellationToken token = default)
+    {
+        var tempList = Path.GetTempFileName();
+        await File.WriteAllLinesAsync(tempList, inputFiles.Select(f => $"file '{f}'"), token);
 
-		var tempFileList = Path.Combine(Path.GetTempPath(), $"filelist_{Guid.NewGuid()}.txt");
-		await File.WriteAllLinesAsync(tempFileList, inputFilePaths.Select(p => $"file '{Path.GetFullPath(p).Replace("'", "'\\''")}'"), token);
+        var conversion = FFmpeg.Conversions.New()
+            .AddParameter($"-f concat -safe 0 -i \"{tempList}\"", ParameterPosition.PreInput)
+            .AddParameter("-c:v libx264 -preset veryfast -crf 20")
+            .AddParameter("-c:a aac -b:a 128k")
+            .AddParameter("-vf fps=30")
+            .SetOutput(outputFile);
 
-		try
-		{
-			var conversion = FFmpeg.Conversions.New()
-				.AddParameter($"-f concat -safe 0 -i \"{tempFileList}\" -c copy \"{outputFilePath}\"", ParameterPosition.PreInput);
+        var result = await conversion.Start(token);
 
-			var result = await conversion.Start(token);
+        File.Delete(tempList);
+        return result.Duration;
+    }
 
-			_logger.LogInformation("Merging of videos took {Duration}.", result.Duration);
 
-			return result.Duration;
-		}
-		finally
-		{
-			if (File.Exists(tempFileList))
-				File.Delete(tempFileList);
-		}
-	}
-
-	/// <summary>
-	/// Method for placing a watermark on the video
-	/// </summary>
-	/// <param name="inputFilePath">Path to the input video file.</param>
-	/// <param name="watermarkPath">Path to the watermark image.</param>
-	/// <param name="outputFilePath">Path to the ouput video with the watermark.</param>
-	/// <param name="token">Cancellation token.</param>
-	/// <returns></returns>
-	public async Task<TimeSpan> PlaceWatermarkAsync(
+    /// <summary>
+    /// Method for placing a watermark on the video
+    /// </summary>
+    /// <param name="inputFilePath">Path to the input video file.</param>
+    /// <param name="watermarkPath">Path to the watermark image.</param>
+    /// <param name="outputFilePath">Path to the ouput video with the watermark.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns></returns>
+    public async Task<TimeSpan> PlaceWatermarkAsync(
         string inputFilePath,
         string watermarkPath,
         string outputFilePath,
@@ -260,29 +251,25 @@ public class VideoProcessingService : IVideoProcessingService
     /// <param name="token">Cancellation token.</param>
     /// <returns></returns>
     public async Task<TimeSpan> SplitAtAsync(
-        string inputFilePath,
-        string outputFilePath,
-        TimeSpan startPoint,
-        TimeSpan videoLength,
-        CancellationToken token = default)
+    string inputFilePath,
+    string outputFilePath,
+    TimeSpan startPoint,
+    TimeSpan videoLength,
+    CancellationToken token = default)
     {
-        var inputVideoInfo = await FFmpeg.GetMediaInfo(inputFilePath, token);
-
-        if (inputVideoInfo.Duration <= startPoint)
-        {
-            throw new Exception($"Cannot start splitting from {startPoint} as the video duration is {inputVideoInfo.Duration}");
-        }
-
         var conversion = FFmpeg.Conversions.New()
-            .AddParameter($"-ss {startPoint} -i \"{inputFilePath}\" -t {videoLength} -c copy \"{outputFilePath}\"")
-            .AddParameter("-r 29.97");
-        conversion.OnProgress += Conversion_OnProgress;
+            .AddParameter($"-ss {startPoint}", ParameterPosition.PreInput)
+            .AddParameter($"-i \"{inputFilePath}\"")
+            .AddParameter($"-t {videoLength}")
+            .AddParameter("-c:v libx264 -preset veryfast -crf 20")
+            .AddParameter("-c:a aac -b:a 128k")
+            .AddParameter("-vf fps=30") // ЕДИНСТВЕННОЕ ограничение, которое обязательно
+            .SetOutput(outputFilePath);
+
         var result = await conversion.Start(token);
-
-		_logger.LogInformation("Splitting of the video took {Duration}.", result.Duration);
-
-		return result.Duration;
+        return result.Duration;
     }
+
 
     /// <summary>
     /// Method for splitting video to equal pieces not depending on the video length
