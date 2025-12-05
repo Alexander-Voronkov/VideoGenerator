@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using VideoGenerator.Configs;
 using VideoGenerator.Entities;
 using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
@@ -12,17 +14,19 @@ public class UploadSchedulerWorker : BackgroundService
 {
     private readonly ILogger _logger;
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
+    private readonly UploadConfig _options;
 
-    public UploadSchedulerWorker(ILogger<UploadSchedulerWorker> logger, IDbContextFactory<ApplicationDbContext> contextFactory)
+    public UploadSchedulerWorker(ILogger<UploadSchedulerWorker> logger, IDbContextFactory<ApplicationDbContext> contextFactory, IOptions<UploadConfig> options)
     {
         _logger = logger;
         _contextFactory = contextFactory;
+        _options = options.Value;
     }
     
     protected override async Task ExecuteAsync(CancellationToken token = default)
     {
-        var partsDelay = TimeSpan.FromHours(2);
-        var videosDelay = TimeSpan.FromHours(4);
+        var partsDelay = TimeSpan.FromMinutes(_options.MinutesBetweenParts);
+        var videosDelay = TimeSpan.FromMinutes(_options.MinutesBetweenVideos);
         
         await Task.Delay(1, token);
 

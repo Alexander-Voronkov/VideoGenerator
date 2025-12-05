@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VideoGenerator.Entities;
+using VideoGenerator.Enums;
 using VideoGenerator.Infrastructure;
 using VideoGenerator.Services.Interfaces;
 
@@ -88,21 +89,32 @@ public class InterestingFactsVideoMakerWorker : BackgroundService
     {
         await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(token))
         {
-            dbContext.Set<GeneratedVideo>().Add(new()
+            var video = new GeneratedVideo()
             {
                 GenerationQueueId = queueItem.Id,
                 BlobPath = $"{GeneratedVideosBucket}/{(queueItem.Id + "en")}",
-                Type = Enums.VideoType.InterestingFact,
+                Type = VideoType.InterestingFact,
                 UploadingStatus = UploadingStatus.NotUploaded,
                 PartNumber = 1,
                 TotalParts = 1
-            });
+            };
+            
+            var batch = new PublishBatch()
+            {
+	            GenerationQueueItemId = queueItem.Id,
+	            ContentType = VideoType.InterestingFact
+            };
+			
+            dbContext.Set<GeneratedVideo>().Add(video);
+            dbContext.Set<PublishBatch>().Add(batch);
 
             dbContext.Attach(queueItem);
 
             queueItem.Status = GenerationStatus.Processed;
 
             await dbContext.SaveChangesAsync(token);
+            
+            
         }
     }
 
