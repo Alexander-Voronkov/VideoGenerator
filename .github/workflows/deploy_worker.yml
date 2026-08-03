@@ -1,0 +1,63 @@
+name: Deploy .NET App via SSH (Rebuild Container)
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker-config:
+        description: "What to deploy"
+        required: true
+        default: "VideoMakerWorker"
+        type: choice
+        options:
+          - VideoMakerWorker
+          - VideoSplitterWorker
+          - UploadSchedulerWorker
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy updated source code to remote server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VM_SECRET_KEY }}
+          source: "."
+          target: "~/videogeneratorworker-src"
+
+      - name: Rebuild and restart container on remote server
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.VM_SECRET_KEY }}
+          port: 22
+          script: |
+            CONFIG="${{ github.event.inputs.worker-config }}"
+            echo "🚀 Deploying service with config: $CONFIG on $(hostname)"
+            cd ~/videogeneratorworker-src
+
+            echo "🔨 Rebuilding Docker image..."
+            sudo docker build -t $CONFIG:latest .
+
+            if sudo docker ps -q -f name=$CONFIG > /dev/null; then
+              echo "♻️ Restarting existing container..."
+              sudo docker stop $CONFIG
+              sudo docker rm $CONFIG
+            fi
+
+            echo "🔥 Running updated container with $CONFIG..."
+            sudo docker run -d \
+              --name videogeneratorworker \
+              --restart always \
+              --network npmnetwork \
+              -e DOTNET_ENVIRONMENT=Production \
+              -e WORKERS__0=$CONFIG \
+              videogeneratorworker:latest
+
+            echo "✅ Deploy complete!"
